@@ -280,7 +280,8 @@ export async function searchIssues(params: {
     return searchJiraIssuesUsingJql(jql, {
       maxResults: params.maxResults,
       startAt: params.startAt,
-      expand: params.expand
+      expand: params.expand,
+      fields: ['summary', 'status', 'assignee', 'priority', 'created', 'updated']
     });
   });
 }
@@ -291,19 +292,32 @@ export async function searchJiraIssuesUsingJql(
     maxResults?: number;
     startAt?: number;
     expand?: string[];
+    fields?: string[];
   } = {}
 ): Promise<Result<JiraSearchResponse, Error>> {
   return withAuth(async (credentials) => {
-    const body = {
-      jql,
-      maxResults: options.maxResults || 50,
-      startAt: options.startAt || 0,
-      expand: options.expand || ['names', 'schema', 'operations'],
-    };
+    // Use the new /search/jql endpoint as per Jira API migration guidance
+    const params = new URLSearchParams();
+    params.set('jql', jql);
+    params.set('maxResults', (options.maxResults || 50).toString());
 
-    return jiraApiCall<JiraSearchResponse>(credentials, "/search", {
-      method: "POST",
-      body
+    if (options.startAt !== undefined) {
+      params.set('startAt', options.startAt.toString());
+    }
+
+    if (options.expand && options.expand.length > 0) {
+      params.set('expand', options.expand.join(','));
+    }
+
+    // Include essential fields for issue display
+    const defaultFields = ['summary', 'status', 'assignee', 'priority', 'created', 'updated'];
+    const fields = options.fields || defaultFields;
+    if (fields.length > 0) {
+      params.set('fields', fields.join(','));
+    }
+
+    return jiraApiCall<JiraSearchResponse>(credentials, `/search?${params.toString()}`, {
+      method: "GET"
     });
   });
 }

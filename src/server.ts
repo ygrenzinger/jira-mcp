@@ -90,8 +90,10 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       inputSchema: {}
     },
     async (_args, _extra) => {
+      console.log('🔧 [jira_get_connection_info] Args:', JSON.stringify(_args, null, 2));
       try {
         const result = await getConnectionInfo();
+        console.log('📊 [jira_get_connection_info] Jira API result:', JSON.stringify(result, null, 2));
 
         if (result.success) {
           const data = result.data;
@@ -152,6 +154,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       inputSchema: JiraSearchIssuesRequestSchema.shape
     },
     async (args: any) => {
+      console.log('🔧 [jira_search_issues] Args:', JSON.stringify(args, null, 2));
       try {
         const params = JiraSearchIssuesRequestSchema.parse(args);
 
@@ -161,7 +164,8 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           result = await searchJiraIssuesUsingJql(params.jql, {
             maxResults: params.maxResults,
             startAt: params.startAt,
-            expand: params.expand
+            expand: params.expand,
+            fields: ['summary', 'status', 'assignee', 'priority', 'created', 'updated']
           });
         } else {
           // Use field-based search
@@ -177,18 +181,19 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
             expand: params.expand
           });
         }
+        console.log('📊 [jira_search_issues] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, (data) => {
           const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
 
           const issuesInfo = data.issues.map(issue => ({
             key: issue.key,
-            summary: issue.fields.summary,
-            status: issue.fields.status.name,
-            assignee: issue.fields.assignee?.displayName || 'Unassigned',
-            priority: issue.fields.priority?.name || 'None',
-            created: formatDate(issue.fields.created),
-            updated: formatDate(issue.fields.updated),
+            summary: issue.fields?.summary || 'No summary available',
+            status: issue.fields?.status?.name || 'Unknown',
+            assignee: issue.fields?.assignee?.displayName || 'Unassigned',
+            priority: issue.fields?.priority?.name || 'None',
+            created: issue.fields?.created ? formatDate(issue.fields.created) : 'Unknown',
+            updated: issue.fields?.updated ? formatDate(issue.fields.updated) : 'Unknown',
             url: `${process.env.JIRA_BASE_URL}/browse/${issue.key}`
           }));
 
@@ -213,9 +218,11 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       inputSchema: JiraCreateIssueRequestSchema.shape
     },
   async (args: any) => {
+      console.log('🔧 [jira_create_issue] Args:', JSON.stringify(args, null, 2));
       try {
         const params = JiraCreateIssueRequestSchema.parse(args);
         const result = await createIssue(params);
+        console.log('📊 [jira_create_issue] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, (data) => {
           const issueUrl = `${process.env.JIRA_BASE_URL}/browse/${data.key}`;
@@ -252,11 +259,13 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       inputSchema: JiraUpdateIssueRequestSchema.shape
     },
   async (args: any) => {
+      console.log('🔧 [jira_update_issue] Args:', JSON.stringify(args, null, 2));
       try {
         const params = JiraUpdateIssueRequestSchema.parse(args);
         const { issueKey, ...updates } = params;
 
         const result = await updateIssue(issueKey, updates);
+        console.log('📊 [jira_update_issue] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, () => {
           const issueUrl = `${process.env.JIRA_BASE_URL}/browse/${issueKey}`;
@@ -298,43 +307,45 @@ ${Object.entries(updates)
       }
     },
   async (args: any) => {
+      console.log('🔧 [jira_get_issue] Args:', JSON.stringify(args, null, 2));
       try {
         const { issueKey } = args;
         const result = await getIssue(issueKey);
+        console.log('📊 [jira_get_issue] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, (issue) => {
-          const description = issue.fields.description?.content?.[0]?.content?.[0]?.text || 'No description';
+          const description = issue.fields?.description?.content?.[0]?.content?.[0]?.text || 'No description';
 
           const issueDetails = {
             key: issue.key,
-            summary: issue.fields.summary,
+            summary: issue.fields?.summary || 'No summary available',
             description: truncateText(description, 300),
             status: {
-              name: issue.fields.status.name,
-              category: issue.fields.status.statusCategory.name
+              name: issue.fields?.status?.name || 'Unknown',
+              category: issue.fields?.status?.statusCategory?.name || 'Unknown'
             },
-            assignee: issue.fields.assignee ? {
+            assignee: issue.fields?.assignee ? {
               displayName: issue.fields.assignee.displayName,
               emailAddress: issue.fields.assignee.emailAddress
             } : null,
-            reporter: {
+            reporter: issue.fields?.reporter ? {
               displayName: issue.fields.reporter.displayName,
               emailAddress: issue.fields.reporter.emailAddress
-            },
-            priority: issue.fields.priority?.name || 'None',
-            issueType: {
+            } : null,
+            priority: issue.fields?.priority?.name || 'None',
+            issueType: issue.fields?.issuetype ? {
               name: issue.fields.issuetype.name,
               iconUrl: issue.fields.issuetype.iconUrl
-            },
-            project: {
+            } : null,
+            project: issue.fields?.project ? {
               key: issue.fields.project.key,
               name: issue.fields.project.name
-            },
-            created: formatDate(issue.fields.created),
-            updated: formatDate(issue.fields.updated),
-            labels: issue.fields.labels || [],
-            components: issue.fields.components?.map((c: any) => c.name) || [],
-            fixVersions: issue.fields.fixVersions?.map((v: any) => v.name) || [],
+            } : null,
+            created: issue.fields?.created ? formatDate(issue.fields.created) : 'Unknown',
+            updated: issue.fields?.updated ? formatDate(issue.fields.updated) : 'Unknown',
+            labels: issue.fields?.labels || [],
+            components: issue.fields?.components?.map((c: any) => c.name) || [],
+            fixVersions: issue.fields?.fixVersions?.map((v: any) => v.name) || [],
             url: `${process.env.JIRA_BASE_URL}/browse/${issue.key}`
           };
 
@@ -362,11 +373,13 @@ ${Object.entries(updates)
       inputSchema: JiraTransitionIssueRequestSchema.shape
     },
   async (args: any) => {
+      console.log('🔧 [jira_transition_issue] Args:', JSON.stringify(args, null, 2));
       try {
         const params = JiraTransitionIssueRequestSchema.parse(args);
         const { issueKey, transitionId, comment, fields } = params;
 
         const result = await transitionIssue(issueKey, transitionId, comment, fields);
+        console.log('📊 [jira_transition_issue] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, () => {
           const issueUrl = `${process.env.JIRA_BASE_URL}/browse/${issueKey}`;
@@ -407,9 +420,11 @@ ${Object.entries(updates)
       }
     },
   async (args: any) => {
+      console.log('🔧 [jira_get_transitions] Args:', JSON.stringify(args, null, 2));
       try {
         const { issueKey } = args;
         const result = await getTransitions(issueKey);
+        console.log('📊 [jira_get_transitions] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, (transitions) => {
           const transitionsInfo = transitions.map(transition => ({
@@ -441,11 +456,13 @@ ${Object.entries(updates)
   inputSchema: JiraCreateIssueLinkRequestSchema.shape
     },
   async (args: any) => {
+      console.log('🔧 [jira_create_issue_link] Args:', JSON.stringify(args, null, 2));
       try {
         const params = JiraCreateIssueLinkRequestSchema.parse(args);
         const { inwardIssueKey, outwardIssueKey, linkType, comment } = params;
 
         const result = await createIssueLink(inwardIssueKey, outwardIssueKey, linkType, comment);
+        console.log('📊 [jira_create_issue_link] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, () => {
           let successMessage = `✅ Issue link created successfully!
@@ -485,9 +502,11 @@ ${Object.entries(updates)
       }
     },
   async (args: any) => {
+      console.log('🔧 [jira_delete_issue_link] Args:', JSON.stringify(args, null, 2));
       try {
         const { linkId } = args;
         const result = await deleteIssueLink(linkId);
+        console.log('📊 [jira_delete_issue_link] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, () => {
           return makeMCPToolTextSuccess(`✅ Issue link deleted successfully!\n\n**Link ID:** ${linkId}`);
@@ -507,11 +526,13 @@ ${Object.entries(updates)
   inputSchema: JiraAddCommentRequestSchema.shape
     },
   async (args: any) => {
+      console.log('🔧 [jira_add_comment] Args:', JSON.stringify(args, null, 2));
       try {
         const params = JiraAddCommentRequestSchema.parse(args);
         const { issueKey, body, visibility } = params;
 
         const result = await createComment(issueKey, body, visibility);
+        console.log('📊 [jira_add_comment] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, (comment) => {
           const issueUrl = `${process.env.JIRA_BASE_URL}/browse/${issueKey}`;
@@ -542,6 +563,7 @@ ${Object.entries(updates)
   inputSchema: JiraUploadAttachmentRequestSchema.shape
     },
   async (args: any) => {
+      console.log('🔧 [jira_upload_attachments] Args:', JSON.stringify(args, null, 2));
       try {
         const params = JiraUploadAttachmentRequestSchema.parse(args);
         const { issueKey, filename, content, contentType } = params;
@@ -565,6 +587,7 @@ ${Object.entries(updates)
         }
 
         const result = await uploadAttachmentsToJira(issueKey, [fileData]);
+        console.log('📊 [jira_upload_attachments] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, (attachments) => {
           const issueUrl = `${process.env.JIRA_BASE_URL}/browse/${issueKey}`;
@@ -598,8 +621,10 @@ ${createAttachmentSummary([fileData])}`);
       description: "List all accessible Jira projects",
       inputSchema: {}
     },
-    async () => {
+    async (args) => {
+      console.log('🔧 [jira_get_projects] Args:', JSON.stringify(args, null, 2));
       const result = await getProjects();
+      console.log('📊 [jira_get_projects] Jira API result:', JSON.stringify(result, null, 2));
       return handleResult(result, (projects) => {
         const projectsInfo = projects.map(project => ({
           key: project.key,
@@ -624,8 +649,10 @@ ${createAttachmentSummary([fileData])}`);
       description: "Get all available issue types in Jira",
       inputSchema: {}
     },
-    async () => {
+    async (args) => {
+      console.log('🔧 [jira_get_issue_types] Args:', JSON.stringify(args, null, 2));
       const result = await getIssueTypes();
+      console.log('📊 [jira_get_issue_types] Jira API result:', JSON.stringify(result, null, 2));
       return handleResult(result, (issueTypes) => {
         const typesInfo = issueTypes.map(type => ({
           id: type.id,
@@ -652,6 +679,7 @@ ${createAttachmentSummary([fileData])}`);
   inputSchema: JiraSearchUsersRequestSchema.shape
     },
     async (args) => {
+      console.log('🔧 [jira_search_users] Args:', JSON.stringify(args, null, 2));
       try {
         const params = JiraSearchUsersRequestSchema.parse(args);
 
@@ -663,6 +691,7 @@ ${createAttachmentSummary([fileData])}`);
         } else {
           result = await listUsers(undefined, params.maxResults);
         }
+        console.log('📊 [jira_search_users] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, (users) => {
           const usersInfo = users
@@ -695,8 +724,10 @@ ${createAttachmentSummary([fileData])}`);
       description: "Get all available issue link types",
       inputSchema: {}
     },
-    async () => {
+    async (args) => {
+      console.log('🔧 [jira_get_issue_link_types] Args:', JSON.stringify(args, null, 2));
       const result = await getIssueLinkTypes();
+      console.log('📊 [jira_get_issue_link_types] Jira API result:', JSON.stringify(result, null, 2));
       return handleResult(result, (linkTypes) => {
         const typesInfo = linkTypes.map(type => ({
           id: type.id,
@@ -721,8 +752,10 @@ ${createAttachmentSummary([fileData])}`);
       description: "Get all available Jira fields (system and custom)",
       inputSchema: {}
     },
-    async () => {
+    async (args) => {
+      console.log('🔧 [jira_get_fields] Args:', JSON.stringify(args, null, 2));
       const result = await listFieldSummaries();
+      console.log('📊 [jira_get_fields] Jira API result:', JSON.stringify(result, null, 2));
       return handleResult(result, (fields) => {
         return makeMCPToolJSONSuccess({
           fields,
