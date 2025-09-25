@@ -316,7 +316,7 @@ export async function searchJiraIssuesUsingJql(
       params.set('fields', fields.join(','));
     }
 
-    return jiraApiCall<JiraSearchResponse>(credentials, `/search?${params.toString()}`, {
+    return jiraApiCall<JiraSearchResponse>(credentials, `/search/jql?${params.toString()}`, {
       method: "GET"
     });
   });
