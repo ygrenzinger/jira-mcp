@@ -13,20 +13,18 @@ This is a comprehensive Model Context Protocol (MCP) server for Jira integration
 ### Basic Commands
 ```bash
 npm install          # Install dependencies
-npm run build        # Compile TypeScript to JavaScript
+npm run build        # Build with Vite
 npm run clean        # Remove compiled files
 ```
 
 ### Server Variants
 ```bash
-npm start            # Start simple server (1 tool: connection test)
-npm run start-full   # Start full server (16 tools: complete Jira integration)
-npm run dev          # Development mode with hot reload (simple server)
+npm start            # Start  server (16 tools: complete Jira integration)
+npm run dev          # Development mode with Vite watch
 
 # HTTPS variants
-npm run start-https       # Start simple server with HTTPS
-npm run start-full-https  # Start full server with HTTPS
-npm run dev-https         # Development mode with HTTPS
+npm run start-https       # Start server with HTTPS
+npm run dev-https         # Development mode with Vite watch and HTTPS
 ```
 
 ### Environment Setup
@@ -47,8 +45,7 @@ cp .env.example .env # Copy environment template
 USE_HTTPS=true
 
 # Or use HTTPS-specific npm scripts:
-npm run start-https        # Simple server with HTTPS on port 3443
-npm run start-full-https   # Full server with HTTPS on port 3443
+npm run start-https        # Server with HTTPS on port 3443
 npm run dev-https          # Development mode with HTTPS
 
 # Health check for HTTPS (use -k to ignore self-signed certificate warnings):
@@ -65,12 +62,7 @@ curl -k https://localhost:3443/health  # Test HTTPS server and Jira connection
 
 ### Two Server Implementations
 
-**Simple Server** (`src/simple-server.ts` - 108 lines)
-- Single tool: `jira_get_connection_info`
-- Minimal MCP implementation for basic connection testing
-- Uses simplified transport setup without custom Express integration
-
-**Full Server** (`src/server.ts` - 873 lines)
+**Server** (`src/server.ts` - 873 lines)
 - 16 comprehensive Jira tools covering all operations
 - Complete MCP tool registration with schema validation
 - Advanced Express integration with session management
@@ -126,7 +118,7 @@ Add to your Claude Code MCP settings:
   "mcpServers": {
     "jira": {
       "command": "node",
-      "args": ["/path/to/mcp-jira/dist/simple-server.js"],
+      "args": ["/path/to/mcp-jira/dist/server.js"],
       "env": {
         "JIRA_API_TOKEN": "your_token",
         "JIRA_EMAIL": "your-email@company.com",
@@ -153,11 +145,6 @@ The full server provides 16 tools organized by function:
 - Strict mode enabled with comprehensive type checking
 - Source maps and declarations generated in `dist/`
 
-### Current Issues
-- The full server (`src/server.ts`) has type compatibility issues with MCP SDK
-- Simple server works correctly for basic functionality
-- MCP tool response types may need alignment with SDK expectations
-
 ### Environment Variables
 All Jira credentials are loaded from environment variables, never hardcoded:
 - `JIRA_API_TOKEN`: Required for API authentication
@@ -166,8 +153,7 @@ All Jira credentials are loaded from environment variables, never hardcoded:
 - `PORT`: Optional server port (default: 3000)
 
 ### File Organization
-- `src/simple-server.ts`: Working minimal MCP server
-- `src/server.ts`: Full-featured server (compilation issues)
+- `src/server.ts`: Full-featured MCP server
 - `src/jira_api_helper.ts`: Complete Jira API integration
 - `src/types.ts`: Comprehensive type definitions and schemas
 - `src/utils.ts`: MCP utilities and response formatting
