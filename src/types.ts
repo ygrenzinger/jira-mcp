@@ -337,3 +337,17 @@ export class JiraValidationError extends Error {
     this.name = "JiraValidationError";
   }
 }
+
+// Transformed comment types
+export interface TransformedJiraComment {
+  author: {
+    displayName: string;
+    emailAddress: string;
+  };
+  body: string; // from renderedBody
+}
+
+export interface TransformedCommentsResponse {
+  success: true;
+  data: TransformedJiraComment[];
+}

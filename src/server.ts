@@ -26,6 +26,7 @@ import {
   deleteIssueLink,
   getIssueLinkTypes,
   createComment,
+  getIssueComments,
   uploadAttachmentsToJira,
   getProjects,
   getIssueTypes,
@@ -566,7 +567,56 @@ ${Object.entries(updates)
     }
   );
 
-  // Tool 11: Upload Attachments
+  // Tool 11: Get Issue Comments
+  server.registerTool(
+    "jira_get_comments",
+    {
+      title: "Get Jira Issue Comments",
+      description: "Get all comments about a specific Jira issue",
+      inputSchema: {
+        issueKey: z.string().describe("The issue key (e.g., 'PROJ-123')")
+      }
+    },
+    async (args: any) => {
+      console.log('🔧 [jira_get_comments] Args:', JSON.stringify(args, null, 2));
+      try {
+        const { issueKey } = args;
+        const result = await getIssueComments(issueKey);
+        
+        // Write the result to a JSON file with the timestamp as the file name
+        try {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const outputDir = path.join(process.cwd(), 'jira-issue-logs');
+          if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+          }
+          const filePath = path.join(outputDir, `jira_comment_${timestamp}.json`);
+          fs.writeFileSync(filePath, JSON.stringify(result, null, 2), 'utf-8');
+        } catch (fileError) {
+          console.error('Failed to write Jira issue result to file:', fileError);
+        }
+
+        return handleResult(result, (comments) => {
+          return makeMCPToolJSONSuccess({
+            issueKey,
+            comments,
+            total: comments.length
+          });
+        });
+      } catch (error) {
+        return makeMCPToolDetailedError(
+          normalizeError(error),
+          "Failed to get issue comments",
+          [
+            "Verify the issue key is correct",
+            "Check that you have permission to view the issue and its comments"
+          ]
+        );
+      }
+    }
+  );
+
+  // Tool 12: Upload Attachments
   server.registerTool(
     "jira_upload_attachments",
     {
@@ -625,7 +675,7 @@ ${createAttachmentSummary([fileData])}`);
     }
   );
 
-  // Tool 12: Get Projects
+  // Tool 13: Get Projects
   server.registerTool(
     "jira_get_projects",
     {
@@ -653,7 +703,7 @@ ${createAttachmentSummary([fileData])}`);
     }
   );
 
-  // Tool 13: Get Issue Types
+  // Tool 14: Get Issue Types
   server.registerTool(
     "jira_get_issue_types",
     {
@@ -682,7 +732,7 @@ ${createAttachmentSummary([fileData])}`);
     }
   );
 
-  // Tool 14: Search Users
+  // Tool 15: Search Users
   server.registerTool(
     "jira_search_users",
     {
@@ -728,7 +778,7 @@ ${createAttachmentSummary([fileData])}`);
 
   // Additional utility tools
 
-  // Get Issue Link Types
+  // Tool 16: Get Issue Link Types
   server.registerTool(
     "jira_get_issue_link_types",
     {
@@ -756,7 +806,7 @@ ${createAttachmentSummary([fileData])}`);
     }
   );
 
-  // Get Fields
+  // Tool 17: Get Fields
   server.registerTool(
     "jira_get_fields",
     {
@@ -890,6 +940,7 @@ app.get('/health', async (req, res) => {
       'jira_create_issue_link',
       'jira_delete_issue_link',
       'jira_add_comment',
+      'jira_get_comments',
       'jira_upload_attachments',
       'jira_get_projects',
       'jira_get_issue_types',
@@ -915,7 +966,7 @@ if (USE_HTTPS) {
       console.log(`🚀 Jira MCP Server running on HTTPS port ${HTTPS_PORT}`);
       console.log(`📍 Health check: https://localhost:${HTTPS_PORT}/health`);
       console.log(`🔗 MCP endpoint: https://localhost:${HTTPS_PORT}/mcp`);
-      console.log(`\n🛠️  Available Jira MCP tools (16 total):`);
+      console.log(`\n🛠️  Available Jira MCP tools (17 total):`);
       console.log(`  📊 Connection & Info:`);
       console.log(`    - jira_get_connection_info: Validate and show connection details`);
       console.log(`  🔍 Search & Retrieval:`);
@@ -955,7 +1006,7 @@ if (USE_HTTPS) {
       console.log(`🚀 Jira MCP Server running on HTTP port ${PORT}`);
       console.log(`📍 Health check: http://localhost:${PORT}/health`);
       console.log(`🔗 MCP endpoint: http://localhost:${PORT}/mcp`);
-      console.log(`\n🛠️  Available Jira MCP tools (16 total):`);
+      console.log(`\n🛠️  Available Jira MCP tools (17 total):`);
       console.log(`  📊 Connection & Info:`);
       console.log(`    - jira_get_connection_info: Validate and show connection details`);
       console.log(`  🔍 Search & Retrieval:`);
@@ -994,7 +1045,7 @@ if (USE_HTTPS) {
     console.log(`🚀 Jira MCP Server running on HTTP port ${PORT}`);
     console.log(`📍 Health check: http://localhost:${PORT}/health`);
     console.log(`🔗 MCP endpoint: http://localhost:${PORT}/mcp`);
-    console.log(`\n🛠️  Available Jira MCP tools (16 total):`);
+    console.log(`\n🛠️  Available Jira MCP tools (17 total):`);
     console.log(`  📊 Connection & Info:`);
     console.log(`    - jira_get_connection_info: Validate and show connection details`);
     console.log(`  🔍 Search & Retrieval:`);

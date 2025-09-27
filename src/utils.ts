@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Result } from "./types.js";
+import { Result, TransformedCommentsResponse } from "./types.js";
 
 // MCP server factory function
 export function makeInternalMCPServer(options: {
@@ -315,3 +315,21 @@ export const jiraCache = new SimpleCache();
 setInterval(() => {
   jiraCache.cleanup();
 }, 10 * 60 * 1000);
+
+// Comment transformation utility
+export function transformJiraComments(comments: any[]): TransformedCommentsResponse {
+  const transformedComments = comments.map(comment => ({
+    author: {
+      displayName: comment.author?.displayName || '',
+      emailAddress: comment.author?.emailAddress || ''
+    },
+    body: comment.renderedBody || '',
+    created: comment.created ? formatDate(comment.created) : 'Unknown',
+    updated: comment.updated ? formatDate(comment.updated) : 'Unknown'
+  }));
+
+  return {
+    success: true,
+    data: transformedComments
+  };
+}

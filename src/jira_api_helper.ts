@@ -18,6 +18,7 @@ import {
   Result,
   SEARCH_USERS_MAX_RESULTS
 } from "./types.js";
+import { transformJiraComments } from "./utils.js";
 
 // Environment-based authentication
 export function getJiraCredentials(): Result<JiraCredentials, Error> {
@@ -576,6 +577,20 @@ export async function createComment(
       method: "POST",
       body: commentBody
     });
+  });
+}
+
+export async function getIssueComments(issueKey: string): Promise<Result<any[], Error>> {
+  return withAuth(async (credentials) => {
+    const result = await jiraApiCall<{ comments: any[] }>(
+      credentials,
+      `/issue/${issueKey}/comment?expand=renderedBody`
+    );
+
+    if (!result.success) return result;
+    
+      const transformedResult = transformJiraComments(result.data.comments);
+      return { success: true, data: transformedResult.data };
   });
 }
 
