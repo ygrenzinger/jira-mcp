@@ -10,13 +10,11 @@ import {
   JiraTransition,
   JiraField,
   JiraProjectVersion,
-  JiraComponent,
   JiraAttachment,
   JiraSearchResponse,
   JiraApiError,
   JiraAuthenticationError,
   JiraNotFoundError,
-  JiraValidationError,
   Result,
   SEARCH_USERS_MAX_RESULTS
 } from "./types.js";
@@ -316,16 +314,20 @@ export async function searchJiraIssuesUsingJql(
       params.set('fields', fields.join(','));
     }
 
-    return jiraApiCall<JiraSearchResponse>(credentials, `/search/jql?${params.toString()}`, {
+    const url = `/search/jql?${params.toString()}`;
+    console.log('🔍 [searchJiraIssuesUsingJql] URL:', url);
+
+    return jiraApiCall<JiraSearchResponse>(credentials, url, {
       method: "GET"
     });
   });
 }
 
-export async function getIssue(issueKey: string): Promise<Result<JiraIssue, Error>> {
+export async function getIssue(issueKey: string, fields?: string[]): Promise<Result<JiraIssue, Error>> {
   return withAuth(async (credentials) => {
     const expand = 'names,schema,operations,editmeta,changelog,transitions';
-    return jiraApiCall<JiraIssue>(credentials, `/issue/${issueKey}?expand=${expand}`);
+    const fieldsUrlParam = fields?.join(',') || "";
+    return jiraApiCall<JiraIssue>(credentials, `/issue/${issueKey}` + `?expand=${expand}&fields=${fieldsUrlParam}`);
   });
 }
 

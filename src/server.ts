@@ -181,7 +181,19 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
             expand: params.expand
           });
         }
-        console.log('📊 [jira_search_issues] Jira API result:', JSON.stringify(result, null, 2));
+        
+        // Write the result to a JSON file with the timestamp as the file name
+        try {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const outputDir = path.join(process.cwd(), 'jira-issue-logs');
+          if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+          }
+          const filePath = path.join(outputDir, `jira_search_issues_${timestamp}.json`);
+          fs.writeFileSync(filePath, JSON.stringify(result, null, 2), 'utf-8');
+        } catch (fileError) {
+          console.error('Failed to write Jira issue result to file:', fileError);
+        }
 
         return handleResult(result, (data) => {
           const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
@@ -303,15 +315,15 @@ ${Object.entries(updates)
       title: "Get Jira Issue Details",
       description: "Get detailed information about a specific Jira issue",
       inputSchema: {
-        issueKey: z.string().describe("The issue key (e.g., 'PROJ-123')")
+        issueKey: z.string().describe("The issue key (e.g., 'PROJ-123')"),
+        fields: z.array(z.string()).describe("Optional list of Jira fields to retrieve")
       }
     },
   async (args: any) => {
       console.log('🔧 [jira_get_issue] Args:', JSON.stringify(args, null, 2));
       try {
-        const { issueKey } = args;
-        const result = await getIssue(issueKey);
-        console.log('📊 [jira_get_issue] Jira API result:', JSON.stringify(result, null, 2));
+        const { issueKey, fields } = args;
+        const result = await getIssue(issueKey, fields);
 
         return handleResult(result, (issue) => {
           const description = issue.fields?.description?.content?.[0]?.content?.[0]?.text || 'No description';
