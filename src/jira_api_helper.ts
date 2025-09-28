@@ -19,6 +19,7 @@ import {
   SEARCH_USERS_MAX_RESULTS
 } from "./types.js";
 import { transformJiraComments } from "./utils.js";
+import { appendFile } from "fs/promises";
 
 // Environment-based authentication
 export function getJiraCredentials(): Result<JiraCredentials, Error> {
@@ -141,6 +142,14 @@ async function jiraApiCall<T>(
     }
 
     const data = JSON.parse(text);
+    try {
+      await appendFile(
+      'jira_api_response_debug.json',
+      `[${new Date().toISOString()}] ${method} ${endpoint} \n ${text}\n`
+      );
+    } catch {
+      console.error('Failed to append to jira_api_response_debug.json');
+    }
     return { success: true, data };
   } catch (error) {
     return {
@@ -315,10 +324,7 @@ export async function searchJiraIssuesUsingJql(
       params.set('fields', fields.join(','));
     }
 
-    const url = `/search/jql?${params.toString()}`;
-    console.log('🔍 [searchJiraIssuesUsingJql] URL:', url);
-
-    return jiraApiCall<JiraSearchResponse>(credentials, url, {
+    return jiraApiCall<JiraSearchResponse>(credentials, `/search/jql?${params.toString()}`, {
       method: "GET"
     });
   });

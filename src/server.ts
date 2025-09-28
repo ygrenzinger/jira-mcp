@@ -182,19 +182,6 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
             expand: params.expand
           });
         }
-        
-        // Write the result to a JSON file with the timestamp as the file name
-        try {
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const outputDir = path.join(process.cwd(), 'jira-issue-logs');
-          if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
-          }
-          const filePath = path.join(outputDir, `jira_search_issues_${timestamp}.json`);
-          fs.writeFileSync(filePath, JSON.stringify(result, null, 2), 'utf-8');
-        } catch (fileError) {
-          console.error('Failed to write Jira issue result to file:', fileError);
-        }
 
         return handleResult(result, (data) => {
           const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
@@ -582,19 +569,6 @@ ${Object.entries(updates)
       try {
         const { issueKey } = args;
         const result = await getIssueComments(issueKey);
-        
-        // Write the result to a JSON file with the timestamp as the file name
-        try {
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const outputDir = path.join(process.cwd(), 'jira-issue-logs');
-          if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
-          }
-          const filePath = path.join(outputDir, `jira_comment_${timestamp}.json`);
-          fs.writeFileSync(filePath, JSON.stringify(result, null, 2), 'utf-8');
-        } catch (fileError) {
-          console.error('Failed to write Jira issue result to file:', fileError);
-        }
 
         return handleResult(result, (comments) => {
           return makeMCPToolJSONSuccess({
@@ -966,29 +940,6 @@ if (USE_HTTPS) {
       console.log(`🚀 Jira MCP Server running on HTTPS port ${HTTPS_PORT}`);
       console.log(`📍 Health check: https://localhost:${HTTPS_PORT}/health`);
       console.log(`🔗 MCP endpoint: https://localhost:${HTTPS_PORT}/mcp`);
-      console.log(`\n🛠️  Available Jira MCP tools (17 total):`);
-      console.log(`  📊 Connection & Info:`);
-      console.log(`    - jira_get_connection_info: Validate and show connection details`);
-      console.log(`  🔍 Search & Retrieval:`);
-      console.log(`    - jira_search_issues: Advanced issue search with filters/JQL`);
-      console.log(`    - jira_get_issue: Get detailed issue information`);
-      console.log(`  📝 Issue Management:`);
-      console.log(`    - jira_create_issue: Create new issues with full field support`);
-      console.log(`    - jira_update_issue: Update existing issue fields`);
-      console.log(`    - jira_transition_issue: Move issues through workflow`);
-      console.log(`    - jira_get_transitions: Get available workflow transitions`);
-      console.log(`  🔗 Issue Linking:`);
-      console.log(`    - jira_create_issue_link: Link related issues`);
-      console.log(`    - jira_delete_issue_link: Remove issue links`);
-      console.log(`    - jira_get_issue_link_types: Get available link types`);
-      console.log(`  💬 Comments & Attachments:`);
-      console.log(`    - jira_add_comment: Add comments to issues`);
-      console.log(`    - jira_upload_attachments: Upload files to issues`);
-      console.log(`  🏗️  Metadata & Administration:`);
-      console.log(`    - jira_get_projects: List accessible projects`);
-      console.log(`    - jira_get_issue_types: Get available issue types`);
-      console.log(`    - jira_get_fields: Get system and custom fields`);
-      console.log(`    - jira_search_users: Find users by name/email`);
 
       console.log(`\n🔐 Authentication: Using environment variables`);
       console.log(`  - JIRA_API_TOKEN: ${process.env.JIRA_API_TOKEN ? '✅ Set' : '❌ Missing'}`);
@@ -1002,72 +953,12 @@ if (USE_HTTPS) {
   } catch (error) {
     console.error("Failed to start HTTPS server:", error);
     console.log("Falling back to HTTP...");
-    app.listen(PORT, () => {
-      console.log(`🚀 Jira MCP Server running on HTTP port ${PORT}`);
-      console.log(`📍 Health check: http://localhost:${PORT}/health`);
-      console.log(`🔗 MCP endpoint: http://localhost:${PORT}/mcp`);
-      console.log(`\n🛠️  Available Jira MCP tools (17 total):`);
-      console.log(`  📊 Connection & Info:`);
-      console.log(`    - jira_get_connection_info: Validate and show connection details`);
-      console.log(`  🔍 Search & Retrieval:`);
-      console.log(`    - jira_search_issues: Advanced issue search with filters/JQL`);
-      console.log(`    - jira_get_issue: Get detailed issue information`);
-      console.log(`  📝 Issue Management:`);
-      console.log(`    - jira_create_issue: Create new issues with full field support`);
-      console.log(`    - jira_update_issue: Update existing issue fields`);
-      console.log(`    - jira_transition_issue: Move issues through workflow`);
-      console.log(`    - jira_get_transitions: Get available workflow transitions`);
-      console.log(`  🔗 Issue Linking:`);
-      console.log(`    - jira_create_issue_link: Link related issues`);
-      console.log(`    - jira_delete_issue_link: Remove issue links`);
-      console.log(`    - jira_get_issue_link_types: Get available link types`);
-      console.log(`  💬 Comments & Attachments:`);
-      console.log(`    - jira_add_comment: Add comments to issues`);
-      console.log(`    - jira_upload_attachments: Upload files to issues`);
-      console.log(`  🏗️  Metadata & Administration:`);
-      console.log(`    - jira_get_projects: List accessible projects`);
-      console.log(`    - jira_get_issue_types: Get available issue types`);
-      console.log(`    - jira_get_fields: Get system and custom fields`);
-      console.log(`    - jira_search_users: Find users by name/email`);
-
-      console.log(`\n🔐 Authentication: Using environment variables`);
-      console.log(`  - JIRA_API_TOKEN: ${process.env.JIRA_API_TOKEN ? '✅ Set' : '❌ Missing'}`);
-      console.log(`  - JIRA_EMAIL: ${process.env.JIRA_EMAIL ? '✅ Set' : '❌ Missing'}`);
-      console.log(`  - JIRA_BASE_URL: ${process.env.JIRA_BASE_URL ? '✅ Set' : '❌ Missing'}`);
-
-      if (!process.env.JIRA_API_TOKEN || !process.env.JIRA_EMAIL || !process.env.JIRA_BASE_URL) {
-        console.log(`\n⚠️  Warning: Jira credentials not fully configured. See README.md for setup instructions.`);
-      }
-    });
   }
 } else {
   app.listen(PORT, () => {
     console.log(`🚀 Jira MCP Server running on HTTP port ${PORT}`);
     console.log(`📍 Health check: http://localhost:${PORT}/health`);
     console.log(`🔗 MCP endpoint: http://localhost:${PORT}/mcp`);
-    console.log(`\n🛠️  Available Jira MCP tools (17 total):`);
-    console.log(`  📊 Connection & Info:`);
-    console.log(`    - jira_get_connection_info: Validate and show connection details`);
-    console.log(`  🔍 Search & Retrieval:`);
-    console.log(`    - jira_search_issues: Advanced issue search with filters/JQL`);
-    console.log(`    - jira_get_issue: Get detailed issue information`);
-    console.log(`  📝 Issue Management:`);
-    console.log(`    - jira_create_issue: Create new issues with full field support`);
-    console.log(`    - jira_update_issue: Update existing issue fields`);
-    console.log(`    - jira_transition_issue: Move issues through workflow`);
-    console.log(`    - jira_get_transitions: Get available workflow transitions`);
-    console.log(`  🔗 Issue Linking:`);
-    console.log(`    - jira_create_issue_link: Link related issues`);
-    console.log(`    - jira_delete_issue_link: Remove issue links`);
-    console.log(`    - jira_get_issue_link_types: Get available link types`);
-    console.log(`  💬 Comments & Attachments:`);
-    console.log(`    - jira_add_comment: Add comments to issues`);
-    console.log(`    - jira_upload_attachments: Upload files to issues`);
-    console.log(`  🏗️  Metadata & Administration:`);
-    console.log(`    - jira_get_projects: List accessible projects`);
-    console.log(`    - jira_get_issue_types: Get available issue types`);
-    console.log(`    - jira_get_fields: Get system and custom fields`);
-    console.log(`    - jira_search_users: Find users by name/email`);
 
     console.log(`\n🔐 Authentication: Using environment variables`);
     console.log(`  - JIRA_API_TOKEN: ${process.env.JIRA_API_TOKEN ? '✅ Set' : '❌ Missing'}`);
