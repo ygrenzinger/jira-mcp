@@ -166,7 +166,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
             maxResults: params.maxResults,
             startAt: params.startAt,
             expand: params.expand,
-            fields: ['summary', 'status', 'assignee', 'priority', 'created', 'updated']
+            fields: params.fields
           });
         } else {
           // Use field-based search
@@ -317,7 +317,7 @@ ${Object.entries(updates)
       description: "Get detailed information about a specific Jira issue",
       inputSchema: {
         issueKey: z.string().describe("The issue key (e.g., 'PROJ-123')"),
-        fields: z.array(z.string()).describe("Optional list of Jira fields to retrieve")
+        fields: z.array(z.string()).optional().describe("Optional list of Jira fields to retrieve")
       }
     },
   async (args: any) => {

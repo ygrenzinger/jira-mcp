@@ -173,7 +173,8 @@ export const JiraSearchIssuesRequestSchema = z.object({
   startAt: z.number().min(0).default(0).describe("Starting index for pagination"),
   filters: z.array(JiraSearchFilterSchema).optional().describe("Advanced filters"),
   sort: z.array(JiraSortSchema).optional().describe("Sort criteria"),
-  expand: z.array(z.string()).optional().describe("expand options (it must be named renderedFields, names, schema,operations, editmeta, changelog, versionedRepresentations)"),
+  fields: z.array(z.string()).optional().describe("Fields specifically asked by the user to include in the response"),
+  expand: z.array(z.string()).optional().describe("expand options, named renderedFields, names, schema,operations, editmeta, changelog, versionedRepresentations, it must be explicitly asked for by the user"),
 });
 
 // Transition issue schema
