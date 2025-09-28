@@ -11,6 +11,11 @@
     "start-full-https": "USE_HTTPS=true node dist/server.js",
     "dev": "vite build --watch & node dist/server.js",
     "dev-https": "USE_HTTPS=true vite build --watch & node dist/server.js",
+    "debug": "vite build --watch & node --inspect=9229 dist/server.js",
+    "debug-https": "USE_HTTPS=true vite build --watch & node --inspect=9229 dist/server.js",
+    "debug-brk": "npm run build && node --inspect-brk=9229 dist/server.js",
+    "debug-tsx": "npx tsx --inspect=9229 src/server.ts",
+    "debug-tsx-brk": "npx tsx --inspect-brk=9229 src/server.ts",
     "clean": "rm -rf dist",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

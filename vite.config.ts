@@ -62,7 +62,7 @@ export default defineConfig({
     platform: 'node'
   },
   define: {
-    'process.env.NODE_ENV': '"production"'
+    'process.env.NODE_ENV': process.env.NODE_ENV === 'development' ? '"development"' : '"production"'
   },
   optimizeDeps: {
     exclude: ['@modelcontextprotocol/sdk']
