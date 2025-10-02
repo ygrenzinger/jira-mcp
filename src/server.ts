@@ -46,6 +46,7 @@ import {
   JiraAddCommentRequestSchema,
   JiraUploadAttachmentRequestSchema,
   JiraSearchUsersRequestSchema,
+  JiraGetFieldsRequestSchema,
   SEARCH_USERS_MAX_RESULTS
 } from "./types.js";
 
@@ -214,7 +215,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     "jira_create_issue",
     {
       title: "Create Jira Issue",
-      description: "Create a new Jira issue with specified fields",
+      description: "Create a new Jira issue with specified fields. For description field, you can use either plain text or rich Atlassian Document Format (ADF) for advanced formatting.",
       inputSchema: JiraCreateIssueRequestSchema.shape
     },
   async (args: any) => {
@@ -255,7 +256,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     "jira_update_issue",
     {
       title: "Update Jira Issue",
-      description: "Update an existing Jira issue with new field values",
+      description: "Update an existing Jira issue with new field values. For description field, you can use either plain text or rich Atlassian Document Format (ADF) for advanced formatting.",
       inputSchema: JiraUpdateIssueRequestSchema.shape
     },
   async (args: any) => {
@@ -522,7 +523,7 @@ ${Object.entries(updates)
     "jira_add_comment",
     {
       title: "Add Comment to Issue",
-      description: "Add a comment to a Jira issue",
+      description: "Add a comment to a Jira issue. Accepts either plain text string or rich Atlassian Document Format (ADF) for advanced formatting.",
   inputSchema: JiraAddCommentRequestSchema.shape
     },
   async (args: any) => {
@@ -786,18 +787,32 @@ ${createAttachmentSummary([fileData])}`);
     {
       title: "Get Jira Fields",
       description: "Get all available Jira fields (system and custom)",
-      inputSchema: {}
+      inputSchema: JiraGetFieldsRequestSchema.shape
     },
-    async (args) => {
+    async (args: any) => {
       console.log('🔧 [jira_get_fields] Args:', JSON.stringify(args, null, 2));
-      const result = await listFieldSummaries();
-      console.log('📊 [jira_get_fields] Jira API result:', JSON.stringify(result, null, 2));
-      return handleResult(result, (fields) => {
-        return makeMCPToolJSONSuccess({
-          fields,
-          count: fields.length
+      try {
+        const params = JiraGetFieldsRequestSchema.parse(args);
+        const result = await listFieldSummaries(
+          params.maxResults,
+          params.startAt,
+          params.fieldTypes,
+          params.searchTerm
+        );
+        console.log('📊 [jira_get_fields] Jira API result:', JSON.stringify(result, null, 2));
+
+        return handleResult(result, (data) => {
+          const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
+
+          return makeMCPToolJSONSuccess({
+            pagination,
+            fields: data.fields,
+            total: data.total
+          });
         });
-      });
+      } catch (error) {
+        return makeMCPToolTextError(normalizeError(error));
+      }
     }
   );
 

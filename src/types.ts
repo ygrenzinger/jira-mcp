@@ -128,7 +128,7 @@ export const JiraCreateIssueRequestSchema = z.object({
   projectKey: z.string().describe("The project key where the issue will be created"),
   issueType: z.string().describe("The type of issue to create (e.g., 'Bug', 'Task', 'Story')"),
   summary: z.string().describe("Brief description of the issue"),
-  description: z.string().optional().describe("Detailed description of the issue"),
+  description: z.union([z.string(), ADFDocumentSchema]).optional().describe("Detailed description - either plain text string or ADF document object for rich formatting"),
   priority: z.string().optional().describe("Priority level (e.g., 'High', 'Medium', 'Low')"),
   assignee: z.string().optional().describe("Account ID of the assignee"),
   reporter: z.string().optional().describe("Account ID of the reporter"),
@@ -143,7 +143,7 @@ export const JiraCreateIssueRequestSchema = z.object({
 export const JiraUpdateIssueRequestSchema = z.object({
   issueKey: z.string().describe("The issue key to update"),
   summary: z.string().optional().describe("New summary for the issue"),
-  description: z.string().optional().describe("New description for the issue"),
+  description: z.union([z.string(), ADFDocumentSchema]).optional().describe("New description - either plain text string or ADF document object for rich formatting"),
   priority: z.string().optional().describe("New priority level"),
   assignee: z.string().optional().describe("New assignee account ID"),
   labels: z.array(z.string()).optional().describe("New labels list"),
@@ -188,7 +188,7 @@ export const JiraTransitionIssueRequestSchema = z.object({
 // Add comment schema
 export const JiraAddCommentRequestSchema = z.object({
   issueKey: z.string().describe("The issue key to comment on"),
-  body: z.string().describe("The comment text"),
+  body: z.union([z.string(), ADFDocumentSchema]).describe("The comment content - either plain text string or ADF document object for rich formatting"),
   visibility: z.object({
     type: z.enum(["group", "role"]),
     value: z.string(),
@@ -210,6 +210,14 @@ export const JiraSearchUsersRequestSchema = z.object({
   accountId: z.string().optional().describe("Specific account ID to get"),
   maxResults: z.number().min(1).max(SEARCH_USERS_MAX_RESULTS).default(10).describe("Maximum results"),
   includeInactive: z.boolean().default(false).describe("Include inactive users"),
+});
+
+// Get fields schema with pagination
+export const JiraGetFieldsRequestSchema = z.object({
+  maxResults: z.number().min(1).max(200).default(50).describe("Maximum number of fields to return"),
+  startAt: z.number().min(0).default(0).describe("Starting index for pagination"),
+  fieldTypes: z.array(z.enum(["system", "custom"])).optional().describe("Filter by field types"),
+  searchTerm: z.string().optional().describe("Search term to filter fields by name or ID"),
 });
 
 // Result type for error handling

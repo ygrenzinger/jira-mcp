@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Result, TransformedCommentsResponse } from "./types.js";
+import { Result, TransformedCommentsResponse, ADFDocumentSchema } from "./types.js";
+import { z } from "zod";
 
 // MCP server factory function
 export function makeInternalMCPServer(options: {
@@ -10,6 +11,42 @@ export function makeInternalMCPServer(options: {
     name: options.name,
     version: options.version
   });
+}
+
+// ADF type inference
+type ADFDocument = z.infer<typeof ADFDocumentSchema>;
+
+/**
+ * Converts a plain text string or ADF document to ADF format
+ * If input is already an ADF document, returns it as-is
+ * If input is a string, wraps it in a basic paragraph structure
+ */
+export function convertToADF(input: string | ADFDocument): ADFDocument {
+  // If already ADF document, validate and return
+  if (typeof input === "object" && input !== null) {
+    const result = ADFDocumentSchema.safeParse(input);
+    if (result.success) {
+      return result.data;
+    }
+  }
+
+  // Convert plain string to ADF
+  const text = typeof input === "string" ? input : String(input);
+  return {
+    type: "doc",
+    version: 1,
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: text
+          }
+        ]
+      }
+    ]
+  };
 }
 
 // Success response formatter for MCP tools

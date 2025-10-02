@@ -18,7 +18,7 @@ import {
   Result,
   SEARCH_USERS_MAX_RESULTS
 } from "./types.js";
-import { transformJiraComments } from "./utils.js";
+import { transformJiraComments, convertToADF } from "./utils.js";
 import { appendFile } from "fs/promises";
 
 // Environment-based authentication
@@ -145,7 +145,7 @@ async function jiraApiCall<T>(
     try {
       await appendFile(
       'jira_api_response_debug.json',
-      `[${new Date().toISOString()}] ${method} ${endpoint} \n ${text}\n`
+      `[${new Date().toISOString()}] ${method} ${endpoint} \n ${data}\n`
       );
     } catch {
       console.error('Failed to append to jira_api_response_debug.json');
@@ -217,19 +217,54 @@ export async function getIssueFields(): Promise<Result<JiraField[], Error>> {
   });
 }
 
-export async function listFieldSummaries(): Promise<Result<any[], Error>> {
+export async function listFieldSummaries(
+  maxResults: number = 50,
+  startAt: number = 0,
+  fieldTypes?: ("system" | "custom")[],
+  searchTerm?: string
+): Promise<Result<{ fields: any[], total: number, startAt: number, maxResults: number }, Error>> {
   return withAuth(async (credentials) => {
     const result = await jiraApiCall<any>(credentials, "/field");
     if (!result.success) return result;
 
-    const summaries = result.data.map((field: any) => ({
+    let summaries = result.data.map((field: any) => ({
       id: field.id,
       name: field.name,
       custom: field.custom,
       schema: field.schema
     }));
 
-    return { success: true, data: summaries };
+    // Apply filtering
+    if (fieldTypes && fieldTypes.length > 0) {
+      summaries = summaries.filter((field: any) => {
+        if (fieldTypes.includes("custom") && field.custom) return true;
+        if (fieldTypes.includes("system") && !field.custom) return true;
+        return false;
+      });
+    }
+
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      summaries = summaries.filter((field: any) =>
+        field.id.toLowerCase().includes(searchLower) ||
+        field.name.toLowerCase().includes(searchLower)
+      );
+    }
+
+    const total = summaries.length;
+
+    // Apply pagination
+    const paginatedFields = summaries.slice(startAt, startAt + maxResults);
+
+    return {
+      success: true,
+      data: {
+        fields: paginatedFields,
+        total,
+        startAt,
+        maxResults
+      }
+    };
   });
 }
 
@@ -342,7 +377,7 @@ export async function createIssue(issueData: {
   projectKey: string;
   issueType: string;
   summary: string;
-  description?: string;
+  description?: string | any;
   priority?: string;
   assignee?: string;
   reporter?: string;
@@ -360,21 +395,7 @@ export async function createIssue(issueData: {
     };
 
     if (issueData.description) {
-      fields.description = {
-        type: "doc",
-        version: 1,
-        content: [
-          {
-            type: "paragraph",
-            content: [
-              {
-                type: "text",
-                text: issueData.description
-              }
-            ]
-          }
-        ]
-      };
+      fields.description = convertToADF(issueData.description);
     }
 
     if (issueData.priority) {
@@ -421,7 +442,7 @@ export async function createIssue(issueData: {
 
 export async function updateIssue(issueKey: string, updates: {
   summary?: string;
-  description?: string;
+  description?: string | any;
   priority?: string;
   assignee?: string;
   labels?: string[];
@@ -437,21 +458,7 @@ export async function updateIssue(issueKey: string, updates: {
     }
 
     if (updates.description) {
-      fields.description = {
-        type: "doc",
-        version: 1,
-        content: [
-          {
-            type: "paragraph",
-            content: [
-              {
-                type: "text",
-                text: updates.description
-              }
-            ]
-          }
-        ]
-      };
+      fields.description = convertToADF(updates.description);
     }
 
     if (updates.priority) {
@@ -553,26 +560,12 @@ export async function transitionIssue(
 // Comment operations
 export async function createComment(
   issueKey: string,
-  body: string,
+  body: string | any,
   visibility?: { type: "group" | "role"; value: string }
 ): Promise<Result<any, Error>> {
   return withAuth(async (credentials) => {
     const commentBody: any = {
-      body: {
-        type: "doc",
-        version: 1,
-        content: [
-          {
-            type: "paragraph",
-            content: [
-              {
-                type: "text",
-                text: body
-              }
-            ]
-          }
-        ]
-      }
+      body: convertToADF(body)
     };
 
     if (visibility) {
@@ -625,21 +618,7 @@ export async function createIssueLink(
 
     if (comment) {
       body.comment = {
-        body: {
-          type: "doc",
-          version: 1,
-          content: [
-            {
-              type: "paragraph",
-              content: [
-                {
-                  type: "text",
-                  text: comment
-                }
-              ]
-            }
-          ]
-        }
+        body: convertToADF(comment)
       };
     }
 
