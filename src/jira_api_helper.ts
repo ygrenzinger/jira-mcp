@@ -16,9 +16,13 @@ import {
   JiraAuthenticationError,
   JiraNotFoundError,
   Result,
-  SEARCH_USERS_MAX_RESULTS
+  SEARCH_USERS_MAX_RESULTS,
+  SearchFilter,
+  SearchFilterField,
+  SortDirection
 } from "./types.js";
 import { transformJiraComments, convertToADF } from "./utils.js";
+import { createJQLFromSearchFilters } from "./jira_utils.js";
 import { appendFile } from "fs/promises";
 
 // Environment-based authentication
@@ -363,6 +367,48 @@ export async function searchJiraIssuesUsingJql(
       method: "GET"
     });
   });
+}
+
+/**
+ * Search issues using structured filters (converted to JQL internally)
+ * Supports advanced filtering with fuzzy search, operators, custom fields, and sorting
+ */
+export async function searchIssuesWithFilters(
+  filters: SearchFilter[],
+  options?: {
+    sortBy?: { field: SearchFilterField; direction: SortDirection };
+    maxResults?: number;
+    startAt?: number;
+    fields?: string[];
+  }
+): Promise<Result<JiraSearchResponse & { searchCriteria: { filters: SearchFilter[]; jql: string } }, Error>> {
+  const { sortBy, maxResults, startAt, fields } = options || {};
+
+  // Convert filters to JQL
+  const jql = createJQLFromSearchFilters(filters, sortBy);
+
+  // Execute the JQL search
+  const result = await searchJiraIssuesUsingJql(jql, {
+    maxResults,
+    startAt,
+    fields,
+  });
+
+  // Add search criteria to the result
+  if (result.success) {
+    return {
+      success: true,
+      data: {
+        ...result.data,
+        searchCriteria: {
+          filters,
+          jql,
+        },
+      },
+    };
+  }
+
+  return result;
 }
 
 export async function getIssue(issueKey: string, fields?: string[]): Promise<Result<JiraIssue, Error>> {

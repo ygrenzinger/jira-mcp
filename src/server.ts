@@ -17,6 +17,7 @@ import {
   getConnectionInfo,
   searchIssues,
   searchJiraIssuesUsingJql,
+  searchIssuesWithFilters,
   createIssue,
   updateIssue,
   getIssue,
@@ -42,12 +43,15 @@ import {
   JiraUpdateIssueRequestSchema,
   JiraCreateIssueLinkRequestSchema,
   JiraSearchIssuesRequestSchema,
+  JiraSearchFilterSchema,
+  JiraSortSchema,
   JiraTransitionIssueRequestSchema,
   JiraAddCommentRequestSchema,
   JiraUploadAttachmentRequestSchema,
   JiraSearchUsersRequestSchema,
   JiraGetFieldsRequestSchema,
-  SEARCH_USERS_MAX_RESULTS
+  SEARCH_USERS_MAX_RESULTS,
+  SEARCH_ISSUES_MAX_RESULTS
 } from "./types.js";
 
 import {
@@ -202,6 +206,148 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
             pagination,
             issues: issuesInfo,
             total: data.total
+          });
+        });
+      } catch (error) {
+        return makeMCPToolTextError(normalizeError(error));
+      }
+    }
+  );
+
+  // Tool 2a: Get Issues (Filter-based Search - Dust-style)
+  server.registerTool(
+    "jira_get_issues",
+    {
+      title: "Get Jira Issues (Filter-based)",
+      description: "Search issues using one or more filters (e.g., status, priority, labels, assignee, fixVersion, customField, dueDate, created, resolved). Use exact matching by default, or fuzzy matching for approximate/partial matches on summary field. For custom fields, use field 'customField' with customFieldName parameter. For date fields (dueDate, created, resolved), use operator parameter with '<', '>', '=', etc. and date format '2023-07-03' or relative format like '-25d', '7d', '2w', '1M', etc. Results can be sorted using the sortBy parameter with field and direction (ASC/DESC).",
+      inputSchema: {
+        filters: z
+          .array(JiraSearchFilterSchema)
+          .min(1)
+          .describe("Array of search filters to apply (all must match)"),
+        sortBy: JiraSortSchema.optional().describe(
+          "Optional sorting configuration for results"
+        ),
+        maxResults: z
+          .number()
+          .min(1)
+          .max(100)
+          .optional()
+          .default(SEARCH_ISSUES_MAX_RESULTS)
+          .describe(`Maximum number of results to return (default: ${SEARCH_ISSUES_MAX_RESULTS}, max: 100)`),
+        startAt: z
+          .number()
+          .min(0)
+          .optional()
+          .default(0)
+          .describe("Starting index for pagination"),
+      }
+    },
+    async (args: any) => {
+      console.log('🔧 [jira_get_issues] Args:', JSON.stringify(args, null, 2));
+      try {
+        const { filters, sortBy, maxResults, startAt } = args;
+
+        const result = await searchIssuesWithFilters(filters, {
+          sortBy,
+          maxResults,
+          startAt,
+        });
+
+        return handleResult(result, (data) => {
+          const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
+
+          const message =
+            data.issues.length === 0
+              ? "No issues found matching the search criteria"
+              : "Issues retrieved successfully";
+
+          return makeMCPToolJSONSuccess({
+            message,
+            pagination,
+            issues: data.issues.map(issue => ({
+              key: issue.key,
+              summary: issue.fields?.summary || 'No summary available',
+              status: issue.fields?.status?.name || 'Unknown',
+              assignee: issue.fields?.assignee?.displayName || 'Unassigned',
+              priority: issue.fields?.priority?.name || 'None',
+              created: issue.fields?.created ? formatDate(issue.fields.created) : 'Unknown',
+              updated: issue.fields?.updated ? formatDate(issue.fields.updated) : 'Unknown',
+              url: `${process.env.JIRA_BASE_URL}/browse/${issue.key}`
+            })),
+            total: data.total,
+            searchCriteria: data.searchCriteria
+          });
+        });
+      } catch (error) {
+        return makeMCPToolTextError(normalizeError(error));
+      }
+    }
+  );
+
+  // Tool 2b: Get Issues Using JQL (Direct JQL Query - Dust-style)
+  server.registerTool(
+    "jira_get_issues_using_jql",
+    {
+      title: "Get Jira Issues Using JQL",
+      description: "Search JIRA issues using a custom JQL (Jira Query Language) query. This tool allows for advanced search capabilities beyond the filtered search. Examples: 'project = PROJ AND status = Open', 'assignee = currentUser() AND priority = High', 'created >= -30d AND labels = bug'.",
+      inputSchema: {
+        jql: z.string().describe("The JQL (Jira Query Language) query string"),
+        maxResults: z
+          .number()
+          .min(1)
+          .max(100)
+          .optional()
+          .default(SEARCH_ISSUES_MAX_RESULTS)
+          .describe(`Maximum number of results to return (default: ${SEARCH_ISSUES_MAX_RESULTS}, max: 100)`),
+        fields: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Optional list of fields to include in the response. Defaults to ['summary']"
+          ),
+        startAt: z
+          .number()
+          .min(0)
+          .optional()
+          .default(0)
+          .describe("Starting index for pagination"),
+      }
+    },
+    async (args: any) => {
+      console.log('🔧 [jira_get_issues_using_jql] Args:', JSON.stringify(args, null, 2));
+      try {
+        const { jql, maxResults, fields, startAt } = args;
+
+        const result = await searchJiraIssuesUsingJql(jql, {
+          maxResults,
+          fields,
+          startAt,
+        });
+
+        return handleResult(result, (data) => {
+          const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
+
+          const message =
+            data.issues.length === 0
+              ? "No issues found matching the JQL query"
+              : "Issues retrieved successfully using JQL";
+
+          return makeMCPToolJSONSuccess({
+            message,
+            pagination,
+            issues: data.issues.map(issue => ({
+              key: issue.key,
+              summary: issue.fields?.summary || 'No summary available',
+              status: issue.fields?.status?.name || 'Unknown',
+              assignee: issue.fields?.assignee?.displayName || 'Unassigned',
+              priority: issue.fields?.priority?.name || 'None',
+              created: issue.fields?.created ? formatDate(issue.fields.created) : 'Unknown',
+              updated: issue.fields?.updated ? formatDate(issue.fields.updated) : 'Unknown',
+              url: `${process.env.JIRA_BASE_URL}/browse/${issue.key}`
+            })),
+            total: data.total,
+            jql
           });
         });
       } catch (error) {
@@ -921,6 +1067,8 @@ app.get('/health', async (req, res) => {
     tools: [
       'jira_get_connection_info',
       'jira_search_issues',
+      'jira_get_issues',
+      'jira_get_issues_using_jql',
       'jira_create_issue',
       'jira_update_issue',
       'jira_get_issue',
