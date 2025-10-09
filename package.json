@@ -5,6 +5,7 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
+    "restart": "npm run clean && npm run build && npm run start",
     "build": "vite build",
     "start": "node dist/server.js",
     "start-https": "USE_HTTPS=true node dist/server.js",

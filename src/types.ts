@@ -79,6 +79,10 @@ export interface JiraIssueType {
 export interface JiraIssue {
   id: string;
   key: string;
+  renderedFields?: {
+    description?: string;
+    [key: string]: any;
+  };
   fields: {
     summary: string;
     description?: any;
@@ -241,7 +245,7 @@ export const JiraSearchIssuesRequestSchema = z.object({
   issueType: z.string().optional().describe("Filter by issue type"),
   priority: z.string().optional().describe("Filter by priority"),
   jql: z.string().optional().describe("Custom JQL query"),
-  maxResults: z.number().min(1).max(100).default(50).describe("Maximum number of results"),
+  maxResults: z.number().min(1).max(500).default(50).describe("Maximum number of results"),
   startAt: z.number().min(0).default(0).describe("Starting index for pagination"),
   filters: z.array(JiraSearchFilterSchema).optional().describe("Advanced filters"),
   sort: z.array(JiraSortSchema).optional().describe("Sort criteria"),

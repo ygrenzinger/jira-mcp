@@ -23,7 +23,7 @@ import {
 } from "./types.js";
 import { transformJiraComments, convertToADF } from "./utils.js";
 import { createJQLFromSearchFilters } from "./jira_utils.js";
-import { appendFile } from "fs/promises";
+import { writeFile } from "fs/promises";
 
 // Environment-based authentication
 export function getJiraCredentials(): Result<JiraCredentials, Error> {
@@ -147,10 +147,14 @@ async function jiraApiCall<T>(
 
     const data = JSON.parse(text);
     try {
-      await appendFile(
-      'jira_api_response_debug.json',
-      `[${new Date().toISOString()}] ${method} ${endpoint} \n ${data}\n`
-      );
+      const date = new Date();
+      const logEntry = JSON.stringify({
+        method,
+        endpoint,
+        requestBody: body,
+        responseBody: data
+      }, null, 2) + '\n';
+      await writeFile(`${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}.json`, logEntry);
     } catch {
       console.error('Failed to append to jira_api_response_debug.json');
     }
@@ -366,7 +370,7 @@ export async function searchJiraIssuesUsingJql(
     return jiraApiCall<JiraSearchResponse>(credentials, `/search/jql?${params.toString()}`, {
       method: "GET"
     });
-  });
+    });
 }
 
 /**

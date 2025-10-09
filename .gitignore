@@ -13,3 +13,5 @@ dist/
 # https
 certs/
 *.pem
+
+jira_api_response_debug.json
