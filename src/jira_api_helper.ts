@@ -235,29 +235,32 @@ export async function listFieldSummaries(
     const result = await jiraApiCall<any>(credentials, "/field");
     if (!result.success) return result;
 
-    let summaries = result.data.map((field: any) => ({
-      id: field.id,
-      name: field.name,
-      custom: field.custom,
-      schema: field.schema
-    }));
+    // First filter the fields based on type if needed
+    let filteredFields = result.data;
 
-    // Apply filtering
+    // Apply type filtering on the original data
     if (fieldTypes && fieldTypes.length > 0) {
-      summaries = summaries.filter((field: any) => {
+      filteredFields = filteredFields.filter((field: any) => {
         if (fieldTypes.includes("custom") && field.custom) return true;
         if (fieldTypes.includes("system") && !field.custom) return true;
         return false;
       });
     }
 
+    // Apply search term filtering on the original data
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      summaries = summaries.filter((field: any) =>
-        field.id.toLowerCase().includes(searchLower) ||
+      filteredFields = filteredFields.filter((field: any) =>
+        (field.key || field.id).toLowerCase().includes(searchLower) ||
         field.name.toLowerCase().includes(searchLower)
       );
     }
+
+    // Now map to clean summary with only key and name
+    let summaries = filteredFields.map((field: any) => ({
+      key: field.key || field.id,  // Use key if available, fallback to id
+      name: field.name
+    }));
 
     const total = summaries.length;
 
