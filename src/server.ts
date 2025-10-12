@@ -66,6 +66,7 @@ import {
   makeMCPToolDetailedError,
   handleResult,
   createPaginationInfo,
+  createTokenPaginationInfo,
   formatDate,
   truncateText
 } from "./utils.js";
@@ -176,28 +177,26 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           .describe(
             "Optional list of additional fields to include in the response. Always include ['summary', 'status', 'assignee', 'priority', 'created', 'updated']"
           ),
-        startAt: z
-          .number()
-          .min(0)
+        nextPageToken: z
+          .string()
           .optional()
-          .default(0)
-          .describe("Starting index for pagination"),
+          .describe("Token for retrieving the next page of results (from previous response)"),
       }
     },
     async (args: any) => {
       console.log('🔧 [jira_get_issues_using_jql] Args:', JSON.stringify(args, null, 2));
       try {
-        const { jql, maxResults, fields, startAt } = args;
+        const { jql, maxResults, fields, nextPageToken } = args;
 
         const result = await searchJiraIssuesUsingJql(jql, {
           maxResults,
-          fields: ['summary', 'status', 'assignee', 'priority', 'created', 'updated', ...(fields || [])],
-          startAt,
+          fields,
+          nextPageToken,
           expand: ['renderedFields']
         });
 
         return handleResult(result, (data) => {
-          const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
+          const pagination = createTokenPaginationInfo(data.maxResults, data.isLast, data.nextPageToken);
 
           const message =
             data.issues.length === 0
@@ -219,8 +218,9 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
               url: `${process.env.JIRA_BASE_URL}/browse/${issue.key}`,
               description: issue.renderedFields?.description ? truncateText(issue.renderedFields.description, 500) : 'No description available'
             })),
-            total: data.total,
-            jql
+            jql,
+            isLast: data.isLast,
+            nextPageToken: data.nextPageToken
           });
         });
       } catch (error) {

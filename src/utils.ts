@@ -17,6 +17,214 @@ export function makeInternalMCPServer(options: {
 type ADFDocument = z.infer<typeof ADFDocumentSchema>;
 
 /**
+ * Extracts plain text from ADF (Atlassian Document Format) content
+ * Handles various node types including paragraphs, text, hardBreaks, and nested content
+ * Ignores media elements and preserves text flow
+ */
+export function extractTextFromADF(adfContent: any): string {
+  if (!adfContent) return '';
+
+  // If it's already a string, return it
+  if (typeof adfContent === 'string') return adfContent;
+
+  // Handle ADF document structure
+  if (adfContent.type === 'doc' && Array.isArray(adfContent.content)) {
+    return extractTextFromADFNodes(adfContent.content);
+  }
+
+  // Handle if content is passed directly as an array
+  if (Array.isArray(adfContent)) {
+    return extractTextFromADFNodes(adfContent);
+  }
+
+  return '';
+}
+
+/**
+ * Recursively extracts text from ADF nodes
+ */
+function extractTextFromADFNodes(nodes: any[]): string {
+  const textParts: string[] = [];
+
+  for (const node of nodes) {
+    if (!node) continue;
+
+    switch (node.type) {
+      case 'paragraph':
+      case 'heading':
+      case 'listItem':
+        if (Array.isArray(node.content)) {
+          const text = extractTextFromADFNodes(node.content);
+          if (text) textParts.push(text);
+        }
+        break;
+
+      case 'text':
+        if (node.text) {
+          textParts.push(node.text);
+        }
+        break;
+
+      case 'hardBreak':
+        textParts.push(' ');
+        break;
+
+      case 'bulletList':
+      case 'orderedList':
+      case 'blockquote':
+        if (Array.isArray(node.content)) {
+          const text = extractTextFromADFNodes(node.content);
+          if (text) textParts.push(text);
+        }
+        break;
+
+      case 'mediaSingle':
+      case 'media':
+      case 'emoji':
+        // Skip media elements
+        break;
+
+      default:
+        // For unknown types, try to extract content if it exists
+        if (Array.isArray(node.content)) {
+          const text = extractTextFromADFNodes(node.content);
+          if (text) textParts.push(text);
+        }
+    }
+  }
+
+  // Join text parts with space and clean up multiple spaces
+  return textParts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Cleans a field that contains a "name" property by keeping only the name
+ * Special case for project: also keeps the "key" property
+ */
+function cleanFieldWithName(field: any, fieldName?: string): any {
+  if (!field || typeof field !== 'object') return field;
+
+  // Special handling for project field - keep both name and key
+  if (fieldName === 'project' && 'name' in field) {
+    const cleaned: any = { name: field.name };
+    if (field.key) cleaned.key = field.key;
+    return cleaned;
+  }
+
+  // For all other fields with "name", keep only name
+  if ('name' in field) {
+    return { name: field.name };
+  }
+
+  return field;
+}
+
+/**
+ * Cleans a field that contains a "value" property by keeping only value and id
+ * Removes nested child objects and other metadata
+ */
+function cleanFieldWithValue(field: any): any {
+  if (!field || typeof field !== 'object') return field;
+
+  if ('value' in field) {
+    const cleaned: any = { value: field.value };
+    if (field.id) cleaned.id = field.id;
+    return cleaned;
+  }
+
+  return field;
+}
+
+/**
+ * Generically cleans a field based on its structure
+ * Applies appropriate cleaning based on field content
+ */
+function cleanFieldGeneric(field: any, fieldName?: string): any {
+  if (!field || typeof field !== 'object') return field;
+
+  // Handle arrays recursively
+  if (Array.isArray(field)) {
+    return field.map(item => cleanFieldGeneric(item, fieldName));
+  }
+
+  // Check if it's a user field (has emailAddress or displayName)
+  if ('emailAddress' in field || 'displayName' in field) {
+    return {
+      emailAddress: field.emailAddress || '',
+      displayName: field.displayName || ''
+    };
+  }
+
+  // Check if it's an ADF document
+  if ('type' in field && field.type === 'doc') {
+    return extractTextFromADF(field);
+  }
+
+  // Check for "name" property
+  if ('name' in field) {
+    return cleanFieldWithName(field, fieldName);
+  }
+
+  // Check for "value" property
+  if ('value' in field) {
+    return cleanFieldWithValue(field);
+  }
+
+  return field;
+}
+
+/**
+ * Cleans a single Jira issue by converting ADF fields to plain text
+ * and simplifying user fields to only include emailAddress and displayName
+ */
+export function cleanJiraIssue(issue: any): any {
+  if (!issue) return issue;
+
+  const cleanedIssue = { ...issue };
+
+  // Clean fields if they exist
+  if (cleanedIssue.fields) {
+    // Process all fields generically
+    for (const [fieldName, value] of Object.entries(cleanedIssue.fields)) {
+      if (value === null || value === undefined) {
+        continue; // Keep null/undefined as-is
+      }
+
+      // Apply generic cleaning to all fields
+      cleanedIssue.fields[fieldName] = cleanFieldGeneric(value, fieldName);
+    }
+  }
+
+  // Clean renderedFields if they exist
+  if (cleanedIssue.renderedFields) {
+    if (cleanedIssue.renderedFields.description) {
+      // renderedFields are usually HTML, but if it's ADF, clean it
+      if (typeof cleanedIssue.renderedFields.description === 'object') {
+        cleanedIssue.renderedFields.description = extractTextFromADF(cleanedIssue.renderedFields.description);
+      }
+    }
+  }
+
+  return cleanedIssue;
+}
+
+/**
+ * Cleans Jira search response by converting all ADF fields to plain text
+ */
+export function cleanJiraSearchResponse(searchResponse: any): any {
+  if (!searchResponse) return searchResponse;
+
+  const cleanedResponse = { ...searchResponse };
+
+  // Clean issues array
+  if (Array.isArray(cleanedResponse.issues)) {
+    cleanedResponse.issues = cleanedResponse.issues.map(cleanJiraIssue);
+  }
+
+  return cleanedResponse;
+}
+
+/**
  * Converts a plain text string or ADF document to ADF format
  * If input is already an ADF document, returns it as-is
  * If input is a string, wraps it in a basic paragraph structure
@@ -196,7 +404,7 @@ export function normalizeError(error: unknown): Error {
   return new Error('Unknown error occurred');
 }
 
-// Pagination helper
+// Pagination helper (offset-based for legacy endpoints)
 export function createPaginationInfo(
   startAt: number,
   maxResults: number,
@@ -217,6 +425,25 @@ export function createPaginationInfo(
     total,
     hasMore,
     nextStartAt
+  };
+}
+
+// Token-based pagination helper (for new /rest/api/3/search/jql endpoint)
+export function createTokenPaginationInfo(
+  maxResults: number,
+  isLast: boolean,
+  nextPageToken?: string
+): {
+  maxResults: number;
+  hasMore: boolean;
+  isLast: boolean;
+  nextPageToken?: string;
+} {
+  return {
+    maxResults,
+    hasMore: !isLast,
+    isLast,
+    nextPageToken
   };
 }
 

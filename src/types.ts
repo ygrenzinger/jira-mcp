@@ -347,6 +347,16 @@ export interface JiraSearchResponse {
   issues: JiraIssue[];
 }
 
+// New token-based pagination response for /rest/api/3/search/jql
+export interface JiraSearchResponseWithToken {
+  expand?: string;
+  maxResults: number;
+  issues: JiraIssue[];
+  nextPageToken?: string; // Optional - not present on last page
+  isLast: boolean;
+  // Note: total is not available with token-based pagination
+}
+
 export interface JiraField {
   id: string;
   name: string;

@@ -62,6 +62,7 @@ import {
   makeMCPToolDetailedError,
   handleResult,
   createPaginationInfo,
+  createTokenPaginationInfo,
   formatDate,
   truncateText
 } from "./utils.js";
@@ -169,7 +170,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           // Use custom JQL
           result = await searchJiraIssuesUsingJql(params.jql, {
             maxResults: params.maxResults,
-            startAt: params.startAt,
+            nextPageToken: params.nextPageToken || params.startAt?.toString(), // Support both for backward compat
             expand: params.expand,
             fields: params.fields
           });
@@ -183,13 +184,13 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
             issueType: params.issueType,
             priority: params.priority,
             maxResults: params.maxResults,
-            startAt: params.startAt,
+            nextPageToken: params.nextPageToken || params.startAt?.toString(), // Support both for backward compat
             expand: params.expand
           });
         }
 
         return handleResult(result, (data) => {
-          const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
+          const pagination = createTokenPaginationInfo(data.maxResults, data.isLast, data.nextPageToken);
 
           const issuesInfo = data.issues.map(issue => ({
             key: issue.key,
@@ -205,7 +206,8 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           return makeMCPToolJSONSuccess({
             pagination,
             issues: issuesInfo,
-            total: data.total
+            isLast: data.isLast,
+            nextPageToken: data.nextPageToken
           });
         });
       } catch (error) {
@@ -235,27 +237,25 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           .optional()
           .default(SEARCH_ISSUES_MAX_RESULTS)
           .describe(`Maximum number of results to return (default: ${SEARCH_ISSUES_MAX_RESULTS}, max: 100)`),
-        startAt: z
-          .number()
-          .min(0)
+        nextPageToken: z
+          .string()
           .optional()
-          .default(0)
-          .describe("Starting index for pagination"),
+          .describe("Token for retrieving the next page of results (from previous response)"),
       }
     },
     async (args: any) => {
       console.log('🔧 [jira_get_issues] Args:', JSON.stringify(args, null, 2));
       try {
-        const { filters, sortBy, maxResults, startAt } = args;
+        const { filters, sortBy, maxResults, nextPageToken } = args;
 
         const result = await searchIssuesWithFilters(filters, {
           sortBy,
           maxResults,
-          startAt,
+          nextPageToken,
         });
 
         return handleResult(result, (data) => {
-          const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
+          const pagination = createTokenPaginationInfo(data.maxResults, data.isLast, data.nextPageToken);
 
           const message =
             data.issues.length === 0
@@ -275,7 +275,8 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
               updated: issue.fields?.updated ? formatDate(issue.fields.updated) : 'Unknown',
               url: `${process.env.JIRA_BASE_URL}/browse/${issue.key}`
             })),
-            total: data.total,
+            isLast: data.isLast,
+            nextPageToken: data.nextPageToken,
             searchCriteria: data.searchCriteria
           });
         });
@@ -306,27 +307,25 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           .describe(
             "Optional list of fields to include in the response. Defaults to ['summary']"
           ),
-        startAt: z
-          .number()
-          .min(0)
+        nextPageToken: z
+          .string()
           .optional()
-          .default(0)
-          .describe("Starting index for pagination"),
+          .describe("Token for retrieving the next page of results (from previous response)"),
       }
     },
     async (args: any) => {
       console.log('🔧 [jira_get_issues_using_jql] Args:', JSON.stringify(args, null, 2));
       try {
-        const { jql, maxResults, fields, startAt } = args;
+        const { jql, maxResults, fields, nextPageToken } = args;
 
         const result = await searchJiraIssuesUsingJql(jql, {
           maxResults,
           fields,
-          startAt,
+          nextPageToken,
         });
 
         return handleResult(result, (data) => {
-          const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
+          const pagination = createTokenPaginationInfo(data.maxResults, data.isLast, data.nextPageToken);
 
           const message =
             data.issues.length === 0
@@ -346,7 +345,8 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
               updated: issue.fields?.updated ? formatDate(issue.fields.updated) : 'Unknown',
               url: `${process.env.JIRA_BASE_URL}/browse/${issue.key}`
             })),
-            total: data.total,
+            isLast: data.isLast,
+            nextPageToken: data.nextPageToken,
             jql
           });
         });

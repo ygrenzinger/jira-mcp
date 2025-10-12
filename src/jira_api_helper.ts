@@ -12,6 +12,7 @@ import {
   JiraProjectVersion,
   JiraAttachment,
   JiraSearchResponse,
+  JiraSearchResponseWithToken,
   JiraApiError,
   JiraAuthenticationError,
   JiraNotFoundError,
@@ -21,7 +22,7 @@ import {
   SearchFilterField,
   SortDirection
 } from "./types.js";
-import { transformJiraComments, convertToADF } from "./utils.js";
+import { transformJiraComments, convertToADF, cleanJiraSearchResponse, cleanJiraIssue } from "./utils.js";
 import { createJQLFromSearchFilters } from "./jira_utils.js";
 import { writeFile } from "fs/promises";
 
@@ -316,9 +317,9 @@ export async function searchIssues(params: {
   issueType?: string;
   priority?: string;
   maxResults?: number;
-  startAt?: number;
+  nextPageToken?: string; // Changed from startAt to nextPageToken
   expand?: string[];
-}): Promise<Result<JiraSearchResponse, Error>> {
+}): Promise<Result<JiraSearchResponseWithToken, Error>> {
   return withAuth(async (credentials) => {
     const jqlParts: string[] = [];
 
@@ -333,9 +334,10 @@ export async function searchIssues(params: {
 
     return searchJiraIssuesUsingJql(jql, {
       maxResults: params.maxResults,
-      startAt: params.startAt,
+      nextPageToken: params.nextPageToken,
       expand: params.expand,
-      fields: ['summary', 'status', 'assignee', 'priority', 'created', 'updated']
+      fields: ['summary', 'status', 'assignee', 'priority', 'created', 'updated'],
+      cleanADF: true // Clean ADF fields by default
     });
   });
 }
@@ -344,19 +346,21 @@ export async function searchJiraIssuesUsingJql(
   jql: string,
   options: {
     maxResults?: number;
-    startAt?: number;
+    nextPageToken?: string; // Token-based pagination instead of startAt
     expand?: string[];
     fields?: string[];
+    cleanADF?: boolean; // Convert ADF fields to plain text
   } = {}
-): Promise<Result<JiraSearchResponse, Error>> {
+): Promise<Result<JiraSearchResponseWithToken, Error>> {
   return withAuth(async (credentials) => {
-    // Use the new /search/jql endpoint as per Jira API migration guidance
+    // Use the new /search/jql endpoint with token-based pagination
     const params = new URLSearchParams();
     params.set('jql', jql);
     params.set('maxResults', (options.maxResults || 50).toString());
 
-    if (options.startAt !== undefined) {
-      params.set('startAt', options.startAt.toString());
+    // Use nextPageToken for pagination (don't include on first request)
+    if (options.nextPageToken) {
+      params.set('nextPageToken', options.nextPageToken);
     }
 
     if (options.expand && options.expand.length > 0) {
@@ -370,9 +374,17 @@ export async function searchJiraIssuesUsingJql(
       params.set('fields', fields.join(','));
     }
 
-    return jiraApiCall<JiraSearchResponse>(credentials, `/search/jql?${params.toString()}`, {
+    const result = await jiraApiCall<JiraSearchResponseWithToken>(credentials, `/search/jql?${params.toString()}`, {
       method: "GET"
     });
+
+    // Clean the response to convert ADF fields to plain text if requested
+    if (result.success && options.cleanADF !== false) { // Default to true for backward compatibility
+      const cleanedData = cleanJiraSearchResponse(result.data);
+      return { success: true, data: cleanedData };
+    }
+
+    return result;
     });
 }
 
@@ -385,11 +397,12 @@ export async function searchIssuesWithFilters(
   options?: {
     sortBy?: { field: SearchFilterField; direction: SortDirection };
     maxResults?: number;
-    startAt?: number;
+    nextPageToken?: string; // Changed from startAt to nextPageToken
     fields?: string[];
+    cleanADF?: boolean;
   }
-): Promise<Result<JiraSearchResponse & { searchCriteria: { filters: SearchFilter[]; jql: string } }, Error>> {
-  const { sortBy, maxResults, startAt, fields } = options || {};
+): Promise<Result<JiraSearchResponseWithToken & { searchCriteria: { filters: SearchFilter[]; jql: string } }, Error>> {
+  const { sortBy, maxResults, nextPageToken, fields, cleanADF } = options || {};
 
   // Convert filters to JQL
   const jql = createJQLFromSearchFilters(filters, sortBy);
@@ -397,8 +410,9 @@ export async function searchIssuesWithFilters(
   // Execute the JQL search
   const result = await searchJiraIssuesUsingJql(jql, {
     maxResults,
-    startAt,
+    nextPageToken,
     fields,
+    cleanADF,
   });
 
   // Add search criteria to the result
@@ -418,11 +432,19 @@ export async function searchIssuesWithFilters(
   return result;
 }
 
-export async function getIssue(issueKey: string, fields?: string[]): Promise<Result<JiraIssue, Error>> {
+export async function getIssue(issueKey: string, fields?: string[], cleanADF: boolean = true): Promise<Result<JiraIssue, Error>> {
   return withAuth(async (credentials) => {
     const expand = 'names,schema,operations,editmeta,changelog,transitions';
     const fieldsUrlParam = fields?.join(',') || "";
-    return jiraApiCall<JiraIssue>(credentials, `/issue/${issueKey}` + `?expand=${expand}&fields=${fieldsUrlParam}`);
+    const result = await jiraApiCall<JiraIssue>(credentials, `/issue/${issueKey}` + `?expand=${expand}&fields=${fieldsUrlParam}`);
+
+    // Clean the issue to convert ADF fields to plain text if requested
+    if (result.success && cleanADF) {
+      const cleanedData = cleanJiraIssue(result.data);
+      return { success: true, data: cleanedData };
+    }
+
+    return result;
   });
 }
 
