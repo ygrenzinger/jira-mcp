@@ -1,12 +1,6 @@
 import { loadEnvFile } from "node:process";
-import express from "express";
-import https from "https";
-import fs from "fs";
-import path from "path";
-import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
 // Load environment variables from .env file if it exists
@@ -19,74 +13,34 @@ try {
 // Import our Jira functionality
 import {
   getConnectionInfo,
-  searchIssues,
   searchJiraIssuesUsingJql,
-  searchIssuesWithFilters,
-  createIssue,
-  updateIssue,
   getIssue,
-  transitionIssue,
-  getTransitions,
-  createIssueLink,
-  deleteIssueLink,
-  getIssueLinkTypes,
-  createComment,
   getIssueComments,
-  uploadAttachmentsToJira,
-  getProjects,
   getIssueTypes,
-  getIssueFields,
   listFieldSummaries,
-  listUsers,
-  searchUsersByEmailExact,
+  getProjects,
   normalizeError
 } from "./jira_api_helper.js";
 
 import {
-  JiraCreateIssueRequestSchema,
-  JiraUpdateIssueRequestSchema,
-  JiraCreateIssueLinkRequestSchema,
-  JiraSearchIssuesRequestSchema,
-  JiraSearchFilterSchema,
-  JiraSortSchema,
-  JiraTransitionIssueRequestSchema,
-  JiraAddCommentRequestSchema,
-  JiraUploadAttachmentRequestSchema,
-  JiraSearchUsersRequestSchema,
   JiraGetFieldsRequestSchema,
-  SEARCH_USERS_MAX_RESULTS,
   SEARCH_ISSUES_MAX_RESULTS
 } from "./types.js";
 
 import {
   makeInternalMCPServer,
   makeMCPToolJSONSuccess,
-  makeMCPToolTextSuccess,
   makeMCPToolTextError,
   makeMCPToolDetailedError,
   handleResult,
-  createPaginationInfo,
   createTokenPaginationInfo,
+  createPaginationInfo,
   formatDate,
   truncateText
 } from "./utils.js";
 
-import {
-  getFileFromConversationAttachment,
-  fetchFileFromUrl,
-  processBase64File,
-  processMultipleFiles,
-  createAttachmentSummary
-} from "./file_utils.js";
-
-const app = express();
-app.use(express.json());
-
-// Map to store transports by session ID
-const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
-
 // Create and configure the MCP server with all Jira tools
-function createServer(auth?: any, agentLoopContext?: any): McpServer {
+function createServer(): McpServer {
   const server = makeInternalMCPServer({
     name: "jira-mcp-server",
     version: "1.0.0"
@@ -101,10 +55,10 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       inputSchema: {}
     },
     async (_args, _extra) => {
-      console.log('🔧 [jira_get_connection_info] Args:', JSON.stringify(_args, null, 2));
+      console.error('🔧 [jira_get_connection_info] Args:', JSON.stringify(_args, null, 2));
       try {
         const result = await getConnectionInfo();
-        console.log('📊 [jira_get_connection_info] Jira API result:', JSON.stringify(result, null, 2));
+        console.error('📊 [jira_get_connection_info] Jira API result:', JSON.stringify(result, null, 2));
 
         if (result.success) {
           const data = result.data;
@@ -156,7 +110,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     }
   );
 
-  // Tool 2b: Get Issues Using JQL (Direct JQL Query - Dust-style)
+  // Tool 2: Get Issues Using JQL (Direct JQL Query - Dust-style)
   server.registerTool(
     "jira_get_issues_using_jql",
     {
@@ -184,7 +138,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       }
     },
     async (args: any) => {
-      console.log('🔧 [jira_get_issues_using_jql] Args:', JSON.stringify(args, null, 2));
+      console.error('🔧 [jira_get_issues_using_jql] Args:', JSON.stringify(args, null, 2));
       try {
         const { jql, maxResults, fields, nextPageToken } = args;
 
@@ -229,6 +183,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     }
   );
 
+  // Tool 3: Get Issue Details
   server.registerTool(
     "jira_get_issue",
     {
@@ -239,11 +194,11 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
         fields: z.array(z.string()).optional().describe("Optional list of Jira fields to retrieve")
       }
     },
-  async (args: any) => {
-      console.log('🔧 [jira_get_issue] Args:', JSON.stringify(args, null, 2));
+    async (args: any) => {
+      console.error('🔧 [jira_get_issue] Args:', JSON.stringify(args, null, 2));
       try {
         const { issueKey, fields } = args;
-        console.log(`Fetching issue ${issueKey} with fields: ${fields ? fields.join(', ') : 'default fields'}`);
+        console.error(`Fetching issue ${issueKey} with fields: ${fields ? fields.join(', ') : 'default fields'}`);
         const result = await getIssue(issueKey, fields);
 
         return handleResult(result, (issue) => {
@@ -275,8 +230,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     }
   );
 
-
-  // Tool 11: Get Issue Comments
+  // Tool 4: Get Issue Comments
   server.registerTool(
     "jira_get_comments",
     {
@@ -287,7 +241,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       }
     },
     async (args: any) => {
-      console.log('🔧 [jira_get_comments] Args:', JSON.stringify(args, null, 2));
+      console.error('🔧 [jira_get_comments] Args:', JSON.stringify(args, null, 2));
       try {
         const { issueKey } = args;
         const result = await getIssueComments(issueKey);
@@ -312,7 +266,37 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     }
   );
 
-  // Tool 14: Get Issue Types
+  // Tool 5: Get Projects
+  server.registerTool(
+    "jira_get_projects",
+    {
+      title: "Get Jira Projects",
+      description: "Get all available Jira projects",
+      inputSchema: {}
+    },
+    async (args) => {
+      console.error('🔧 [jira_get_projects] Args:', JSON.stringify(args, null, 2));
+      const result = await getProjects();
+      console.error('📊 [jira_get_projects] Jira API result:', JSON.stringify(result, null, 2));
+      return handleResult(result, (projects) => {
+        const projectsInfo = projects.map(project => ({
+          id: project.id,
+          key: project.key,
+          name: project.name,
+          projectTypeKey: project.projectTypeKey,
+          style: project.style,
+          isPrivate: project.isPrivate
+        }));
+
+        return makeMCPToolJSONSuccess({
+          projects: projectsInfo,
+          count: projects.length
+        });
+      });
+    }
+  );
+
+  // Tool 6: Get Issue Types
   server.registerTool(
     "jira_get_issue_types",
     {
@@ -321,9 +305,9 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       inputSchema: {}
     },
     async (args) => {
-      console.log('🔧 [jira_get_issue_types] Args:', JSON.stringify(args, null, 2));
+      console.error('🔧 [jira_get_issue_types] Args:', JSON.stringify(args, null, 2));
       const result = await getIssueTypes();
-      console.log('📊 [jira_get_issue_types] Jira API result:', JSON.stringify(result, null, 2));
+      console.error('📊 [jira_get_issue_types] Jira API result:', JSON.stringify(result, null, 2));
       return handleResult(result, (issueTypes) => {
         const typesInfo = issueTypes.map(type => ({
           id: type.id,
@@ -341,7 +325,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     }
   );
 
-  // Tool 17: Get Fields
+  // Tool 7: Get Fields
   server.registerTool(
     "jira_get_fields",
     {
@@ -350,7 +334,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       inputSchema: JiraGetFieldsRequestSchema.shape
     },
     async (args: any) => {
-      console.log('🔧 [jira_get_fields] Args:', JSON.stringify(args, null, 2));
+      console.error('🔧 [jira_get_fields] Args:', JSON.stringify(args, null, 2));
       try {
         const params = JiraGetFieldsRequestSchema.parse(args);
         const result = await listFieldSummaries(
@@ -359,7 +343,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           params.fieldTypes,
           params.searchTerm
         );
-        console.log('📊 [jira_get_fields] Jira API result:', JSON.stringify(result, null, 2));
+        console.error('📊 [jira_get_fields] Jira API result:', JSON.stringify(result, null, 2));
 
         return handleResult(result, (data) => {
           const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
@@ -379,158 +363,28 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
   return server;
 }
 
-// Handle POST requests for client-to-server communication
-app.post('/mcp', async (req, res) => {
-  try {
-    // Check for existing session ID
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    let transport: StreamableHTTPServerTransport;
+// Main function to start the stdio server
+async function main() {
+  console.error('🚀 Starting Jira MCP Server (stdio)...');
 
-    if (sessionId && transports[sessionId]) {
-      // Reuse existing transport
-      transport = transports[sessionId];
-    } else if (!sessionId && isInitializeRequest(req.body)) {
-      // New initialization request
-      transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (sessionId) => {
-          // Store the transport by session ID
-          transports[sessionId] = transport;
-          console.log(`🔗 New Jira MCP session initialized: ${sessionId}`);
-        },
-        enableDnsRebindingProtection: false,
-      });
+  // Validate environment variables
+  console.error('🔐 Authentication: Using environment variables');
+  console.error(`  - JIRA_API_TOKEN: ${process.env.JIRA_API_TOKEN ? '✅ Set' : '❌ Missing'}`);
+  console.error(`  - JIRA_EMAIL: ${process.env.JIRA_EMAIL ? '✅ Set' : '❌ Missing'}`);
+  console.error(`  - JIRA_BASE_URL: ${process.env.JIRA_BASE_URL ? '✅ Set' : '❌ Missing'}`);
 
-      // Clean up transport when closed
-      transport.onclose = () => {
-        if (transport.sessionId) {
-          console.log(`🔌 Jira MCP session closed: ${transport.sessionId}`);
-          delete transports[transport.sessionId];
-        }
-      };
-
-      const server = createServer();
-      await server.connect(transport);
-    } else {
-      // Invalid request
-      res.status(400).json({
-        jsonrpc: '2.0',
-        error: {
-          code: -32000,
-          message: 'Bad Request: No valid session ID provided',
-        },
-        id: null,
-      });
-      return;
-    }
-
-    // Handle the request
-    await transport.handleRequest(req, res, req.body);
-  } catch (error) {
-    console.error('Error handling MCP request:', error);
-    if (!res.headersSent) {
-      res.status(500).json({
-        jsonrpc: '2.0',
-        error: {
-          code: -32603,
-          message: 'Internal server error',
-        },
-        id: null,
-      });
-    }
+  if (!process.env.JIRA_API_TOKEN || !process.env.JIRA_EMAIL || !process.env.JIRA_BASE_URL) {
+    console.error('⚠️  Warning: Jira credentials not fully configured. See README.md for setup instructions.');
   }
-});
 
-// Reusable handler for GET and DELETE requests
-const handleSessionRequest = async (req: express.Request, res: express.Response) => {
-  try {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    if (!sessionId || !transports[sessionId]) {
-      res.status(400).send('Invalid or missing session ID');
-      return;
-    }
+  const server = createServer();
+  const transport = new StdioServerTransport();
 
-    const transport = transports[sessionId];
-    await transport.handleRequest(req, res);
-  } catch (error) {
-    console.error('Error handling session request:', error);
-    res.status(500).send('Internal server error');
-  }
-};
-
-// Handle GET requests for server-to-client notifications via SSE
-app.get('/mcp', handleSessionRequest);
-
-// Handle DELETE requests for session termination
-app.delete('/mcp', handleSessionRequest);
-
-// Health check endpoint with Jira connection status
-app.get('/health', async (req, res) => {
-  const connectionResult = await getConnectionInfo();
-
-  res.json({
-    status: 'ok',
-    server: 'jira-mcp-server',
-    version: '1.0.0',
-    activeSessions: Object.keys(transports).length,
-    jiraConnection: {
-      configured: !!(process.env.JIRA_API_TOKEN && process.env.JIRA_EMAIL && process.env.JIRA_BASE_URL),
-      connected: connectionResult.success,
-      baseUrl: process.env.JIRA_BASE_URL || 'not configured'
-    },
-    tools: [
-      'jira_get_connection_info',
-      'jira_get_issues_using_jql',
-      ,'jira_get_issue',
-      'jira_get_comments',
-      'jira_get_issue_link_types',
-      'jira_get_fields'
-    ]
-  });
-});
-
-const PORT = process.env.PORT || 3000;
-const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
-const USE_HTTPS = process.env.USE_HTTPS === 'true';
-
-if (USE_HTTPS) {
-  try {
-    const httpsOptions = {
-      key: fs.readFileSync(path.join(process.cwd(), 'key.pem')),
-      cert: fs.readFileSync(path.join(process.cwd(), 'cert.pem'))
-    };
-
-    https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
-      console.log(`🚀 Jira MCP Server running on HTTPS port ${HTTPS_PORT}`);
-      console.log(`📍 Health check: https://localhost:${HTTPS_PORT}/health`);
-      console.log(`🔗 MCP endpoint: https://localhost:${HTTPS_PORT}/mcp`);
-
-      console.log(`\n🔐 Authentication: Using environment variables`);
-      console.log(`  - JIRA_API_TOKEN: ${process.env.JIRA_API_TOKEN ? '✅ Set' : '❌ Missing'}`);
-      console.log(`  - JIRA_EMAIL: ${process.env.JIRA_EMAIL ? '✅ Set' : '❌ Missing'}`);
-      console.log(`  - JIRA_BASE_URL: ${process.env.JIRA_BASE_URL ? '✅ Set' : '❌ Missing'}`);
-
-      if (!process.env.JIRA_API_TOKEN || !process.env.JIRA_EMAIL || !process.env.JIRA_BASE_URL) {
-        console.log(`\n⚠️  Warning: Jira credentials not fully configured. See README.md for setup instructions.`);
-      }
-    });
-  } catch (error) {
-    console.error("Failed to start HTTPS server:", error);
-    console.log("Falling back to HTTP...");
-  }
-} else {
-  app.listen(PORT, () => {
-    console.log(`🚀 Jira MCP Server running on HTTP port ${PORT}`);
-    console.log(`📍 Health check: http://localhost:${PORT}/health`);
-    console.log(`🔗 MCP endpoint: http://localhost:${PORT}/mcp`);
-
-    console.log(`\n🔐 Authentication: Using environment variables`);
-    console.log(`  - JIRA_API_TOKEN: ${process.env.JIRA_API_TOKEN ? '✅ Set' : '❌ Missing'}`);
-    console.log(`  - JIRA_EMAIL: ${process.env.JIRA_EMAIL ? '✅ Set' : '❌ Missing'}`);
-    console.log(`  - JIRA_BASE_URL: ${process.env.JIRA_BASE_URL ? '✅ Set' : '❌ Missing'}`);
-
-    if (!process.env.JIRA_API_TOKEN || !process.env.JIRA_EMAIL || !process.env.JIRA_BASE_URL) {
-      console.log(`\n⚠️  Warning: Jira credentials not fully configured. See README.md for setup instructions.`);
-    }
-  });
+  await server.connect(transport);
+  console.error('✅ Jira MCP Server connected via stdio');
 }
+
+main().catch((error) => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});

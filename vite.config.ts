@@ -11,7 +11,8 @@ export default defineConfig({
     ssr: true,
     lib: {
       entry: {
-        'server': resolve(__dirname, 'src/server.ts')
+        'server': resolve(__dirname, 'src/server.ts'),
+        'server-stdio': resolve(__dirname, 'src/server-stdio.ts')
       },
       formats: ['es']
     },

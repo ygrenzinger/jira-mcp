@@ -434,9 +434,8 @@ export async function searchIssuesWithFilters(
 
 export async function getIssue(issueKey: string, fields?: string[], cleanADF: boolean = true): Promise<Result<JiraIssue, Error>> {
   return withAuth(async (credentials) => {
-    const expand = 'names,schema,operations,editmeta,changelog,transitions';
     const fieldsUrlParam = fields?.join(',') || "";
-    const result = await jiraApiCall<JiraIssue>(credentials, `/issue/${issueKey}` + `?expand=${expand}&fields=${fieldsUrlParam}`);
+    const result = await jiraApiCall<JiraIssue>(credentials, `/issue/${issueKey}` + `?fields=${fieldsUrlParam}`);
 
     // Clean the issue to convert ADF fields to plain text if requested
     if (result.success && cleanADF) {

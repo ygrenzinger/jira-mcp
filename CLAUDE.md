@@ -19,8 +19,13 @@ npm run clean        # Remove compiled files
 
 ### Server Variants
 ```bash
-npm start            # Start  server (16 tools: complete Jira integration)
+# HTTP Server (for direct HTTP/SSE connections)
+npm start            # Start HTTP server (16 tools: complete Jira integration)
 npm run dev          # Development mode with Vite watch
+
+# STDIO Server (for VS Code, Claude Desktop, GitHub Copilot)
+npm run start-stdio  # Start stdio server (7 tools: connection, search, comments, fields, projects)
+npm run dev-stdio    # Development mode with Vite watch for stdio
 
 # HTTPS variants
 npm run start-https       # Start server with HTTPS
@@ -62,11 +67,18 @@ curl -k https://localhost:3443/health  # Test HTTPS server and Jira connection
 
 ### Two Server Implementations
 
-**Server** (`src/server.ts` - 873 lines)
+**HTTP Server** (`src/server.ts` - 873 lines)
 - 16 comprehensive Jira tools covering all operations
 - Complete MCP tool registration with schema validation
 - Advanced Express integration with session management
-- **Note**: Currently has TypeScript compilation issues with MCP SDK type compatibility
+- HTTP/HTTPS with SSE (Server-Sent Events) transport
+- Best for: Direct HTTP connections, web-based clients
+
+**STDIO Server** (`src/server-stdio.ts` - ~370 lines)
+- 7 core Jira tools (connection, JQL search, issue details, comments, fields, projects, issue types)
+- Stdio transport for standard MCP clients
+- No HTTP dependencies, pure stdin/stdout communication
+- Best for: VS Code, Claude Desktop, GitHub Copilot, other stdio-based MCP clients
 
 ### Core Architecture Layers
 
@@ -111,14 +123,14 @@ Separated concerns: types, API layer, utilities, file handling, and server imple
 
 ## MCP Integration
 
-### Claude Code Configuration
-Add to your Claude Code MCP settings:
+### VS Code / GitHub Copilot Configuration (STDIO Server - Recommended)
+Add to your MCP settings file (`mcp.json` or similar):
 ```json
 {
   "mcpServers": {
-    "jira": {
+    "jira-local-mcp": {
       "command": "node",
-      "args": ["/path/to/mcp-jira/dist/server.js"],
+      "args": ["/absolute/path/to/mcp-jira/dist/server-stdio.js"],
       "env": {
         "JIRA_API_TOKEN": "your_token",
         "JIRA_EMAIL": "your-email@company.com",
@@ -129,13 +141,57 @@ Add to your Claude Code MCP settings:
 }
 ```
 
-### Available Tools (Full Server)
-The full server provides 16 tools organized by function:
+### Claude Desktop Configuration (STDIO Server)
+Add to your Claude Desktop MCP settings:
+```json
+{
+  "mcpServers": {
+    "jira": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-jira/dist/server-stdio.js"],
+      "env": {
+        "JIRA_API_TOKEN": "your_token",
+        "JIRA_EMAIL": "your-email@company.com",
+        "JIRA_BASE_URL": "https://yourcompany.atlassian.net"
+      }
+    }
+  }
+}
+```
+
+### HTTP Server Configuration (Using mcp-proxy)
+If you prefer to use the full HTTP server with more tools:
+```json
+{
+  "mcpServers": {
+    "jira-http": {
+      "command": "npx",
+      "args": [
+        "@sparfenyuk/mcp-proxy",
+        "client",
+        "--url",
+        "http://localhost:3000/mcp"
+      ]
+    }
+  }
+}
+```
+Make sure to start the HTTP server first: `npm start`
+
+### Available Tools
+
+**STDIO Server (7 tools)**:
 - **Connection**: jira_get_connection_info
-- **Search**: jira_search_issues, jira_get_issue
+- **Search**: jira_get_issues_using_jql, jira_get_issue
+- **Communication**: jira_get_comments
+- **Metadata**: jira_get_projects, jira_get_issue_types, jira_get_fields
+
+**HTTP Server (16 tools)** - Full feature set:
+- **Connection**: jira_get_connection_info
+- **Search**: jira_search_issues, jira_get_issues_using_jql, jira_get_issue
 - **Management**: jira_create_issue, jira_update_issue, jira_transition_issue, jira_get_transitions
 - **Linking**: jira_create_issue_link, jira_delete_issue_link, jira_get_issue_link_types
-- **Communication**: jira_add_comment, jira_upload_attachments
+- **Communication**: jira_add_comment, jira_get_comments, jira_upload_attachments
 - **Metadata**: jira_get_projects, jira_get_issue_types, jira_get_fields, jira_search_users
 
 ## Development Notes
