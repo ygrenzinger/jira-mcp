@@ -136,11 +136,36 @@ function cleanFieldWithValue(field: any): any {
 }
 
 /**
+ * Cleans the comment field structure to minimize size
+ * Keeps only authorEmail and body from each comment
+ */
+function cleanCommentField(commentField: any): any {
+  if (!commentField || typeof commentField !== 'object') return commentField;
+
+  // If it has a comments array, clean it
+  if (Array.isArray(commentField.comments)) {
+    return {
+      comments: commentField.comments.map((comment: any) => ({
+        authorEmail: comment.author?.emailAddress || '',
+        body: extractTextFromADF(comment.body) || comment.body || ''
+      }))
+    };
+  }
+
+  return commentField;
+}
+
+/**
  * Generically cleans a field based on its structure
  * Applies appropriate cleaning based on field content
  */
 function cleanFieldGeneric(field: any, fieldName?: string): any {
   if (!field || typeof field !== 'object') return field;
+
+  // Special handling for comment field
+  if (fieldName === 'comment') {
+    return cleanCommentField(field);
+  }
 
   // Handle arrays recursively
   if (Array.isArray(field)) {
@@ -170,7 +195,13 @@ function cleanFieldGeneric(field: any, fieldName?: string): any {
     return cleanFieldWithValue(field);
   }
 
-  return field;
+  // Fallback: recursively process all properties of nested objects
+  // This handles complex nested structures
+  const cleanedObject: any = {};
+  for (const [key, value] of Object.entries(field)) {
+    cleanedObject[key] = cleanFieldGeneric(value, key);
+  }
+  return cleanedObject;
 }
 
 /**

@@ -39,7 +39,7 @@ import {
   listFieldSummaries,
   listUsers,
   searchUsersByEmailExact,
-  normalizeError
+  normalizeError,
 } from "./jira_api_helper.js";
 
 import {
@@ -55,7 +55,7 @@ import {
   JiraSearchUsersRequestSchema,
   JiraGetFieldsRequestSchema,
   SEARCH_USERS_MAX_RESULTS,
-  SEARCH_ISSUES_MAX_RESULTS
+  SEARCH_ISSUES_MAX_RESULTS,
 } from "./types.js";
 
 import {
@@ -68,7 +68,7 @@ import {
   createPaginationInfo,
   createTokenPaginationInfo,
   formatDate,
-  truncateText
+  truncateText,
 } from "./utils.js";
 
 import {
@@ -76,7 +76,7 @@ import {
   fetchFileFromUrl,
   processBase64File,
   processMultipleFiles,
-  createAttachmentSummary
+  createAttachmentSummary,
 } from "./file_utils.js";
 
 const app = express();
@@ -89,7 +89,7 @@ const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 function createServer(auth?: any, agentLoopContext?: any): McpServer {
   const server = makeInternalMCPServer({
     name: "jira-mcp-server",
-    version: "1.0.0"
+    version: "1.0.0",
   });
 
   // Tool 1: Get Connection Info
@@ -98,13 +98,19 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     {
       title: "Get Jira Connection Info",
       description: "Get information about the current Jira connection and user",
-      inputSchema: {}
+      inputSchema: {},
     },
     async (_args, _extra) => {
-      console.log('🔧 [jira_get_connection_info] Args:', JSON.stringify(_args, null, 2));
+      console.log(
+        "🔧 [jira_get_connection_info] Args:",
+        JSON.stringify(_args, null, 2)
+      );
       try {
         const result = await getConnectionInfo();
-        console.log('📊 [jira_get_connection_info] Jira API result:', JSON.stringify(result, null, 2));
+        console.log(
+          "📊 [jira_get_connection_info] Jira API result:",
+          JSON.stringify(result, null, 2)
+        );
 
         if (result.success) {
           const data = result.data;
@@ -112,8 +118,8 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
 
 **Server Info:**
 - Base URL: ${data.baseUrl}
-- Server Title: ${data.serverInfo.serverTitle || 'N/A'}
-- Version: ${data.serverInfo.version || 'N/A'}
+- Server Title: ${data.serverInfo.serverTitle || "N/A"}
+- Version: ${data.serverInfo.version || "N/A"}
 
 **Current User:**
 - Display Name: ${data.currentUser.displayName}
@@ -127,19 +133,19 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
             content: [
               {
                 type: "text",
-                text: info
-              }
-            ]
+                text: info,
+              },
+            ],
           };
         } else {
           return {
             content: [
               {
                 type: "text",
-                text: `Error: ${result.error.message}`
-              }
+                text: `Error: ${result.error.message}`,
+              },
             ],
-            isError: true
+            isError: true,
           };
         }
       } catch (error) {
@@ -147,10 +153,12 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           content: [
             {
               type: "text",
-              text: `Error: ${error instanceof Error ? error.message : String(error)}`
-            }
+              text: `Error: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            },
           ],
-          isError: true
+          isError: true,
         };
       }
     }
@@ -161,7 +169,8 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     "jira_get_issues_using_jql",
     {
       title: "Get Jira Issues Using JQL",
-      description: "Search JIRA issues using a custom JQL (Jira Query Language) query. This tool allows for advanced search capabilities beyond the filtered search. Examples: 'project = PROJ AND status = Open', 'assignee = currentUser() AND priority = High', 'created >= -30d AND labels = bug'.",
+      description:
+        "Search JIRA issues using a custom JQL (Jira Query Language) query. This tool allows for advanced search capabilities beyond the filtered search. Examples: 'project = PROJ AND status = Open', 'assignee = currentUser() AND priority = High', 'created >= -30d AND labels = bug'.",
       inputSchema: {
         jql: z.string().describe("The JQL (Jira Query Language) query string"),
         maxResults: z
@@ -170,7 +179,9 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           .max(100)
           .optional()
           .default(SEARCH_ISSUES_MAX_RESULTS)
-          .describe(`Maximum number of results to return (default: ${SEARCH_ISSUES_MAX_RESULTS}, max: 100)`),
+          .describe(
+            `Maximum number of results to return (default: ${SEARCH_ISSUES_MAX_RESULTS}, max: 100)`
+          ),
         fields: z
           .array(z.string())
           .optional()
@@ -180,11 +191,16 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
         nextPageToken: z
           .string()
           .optional()
-          .describe("Token for retrieving the next page of results (from previous response)"),
-      }
+          .describe(
+            "Token for retrieving the next page of results (from previous response)"
+          ),
+      },
     },
     async (args: any) => {
-      console.log('🔧 [jira_get_issues_using_jql] Args:', JSON.stringify(args, null, 2));
+      console.log(
+        "🔧 [jira_get_issues_using_jql] Args:",
+        JSON.stringify(args, null, 2)
+      );
       try {
         const { jql, maxResults, fields, nextPageToken } = args;
 
@@ -192,11 +208,15 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           maxResults,
           fields,
           nextPageToken,
-          expand: ['renderedFields']
+          //expand: ['renderedFields']
         });
 
         return handleResult(result, (data) => {
-          const pagination = createTokenPaginationInfo(data.maxResults, data.isLast, data.nextPageToken);
+          const pagination = createTokenPaginationInfo(
+            data.maxResults,
+            data.isLast,
+            data.nextPageToken
+          );
 
           const message =
             data.issues.length === 0
@@ -206,21 +226,27 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           return makeMCPToolJSONSuccess({
             message,
             pagination,
-            issues: data.issues.map(issue => ({
+            issues: data.issues.map((issue) => ({
               ...issue,
               key: issue.key,
-              summary: issue.fields?.summary || 'No summary available',
-              status: issue.fields?.status?.name || 'Unknown',
-              assignee: issue.fields?.assignee?.displayName || 'Unknown',
-              priority: issue.fields?.priority?.name || 'None',
-              created: issue.fields?.created ? formatDate(issue.fields.created) : 'Unknown',
-              updated: issue.fields?.updated ? formatDate(issue.fields.updated) : 'Unknown',
+              summary: issue.fields?.summary || "No summary available",
+              status: issue.fields?.status?.name || "Unknown",
+              assignee: issue.fields?.assignee?.displayName || "Unknown",
+              priority: issue.fields?.priority?.name || "None",
+              created: issue.fields?.created
+                ? formatDate(issue.fields.created)
+                : "Unknown",
+              updated: issue.fields?.updated
+                ? formatDate(issue.fields.updated)
+                : "Unknown",
               url: `${process.env.JIRA_BASE_URL}/browse/${issue.key}`,
-              description: issue.renderedFields?.description ? truncateText(issue.renderedFields.description, 500) : 'No description available'
+              description: issue.renderedFields?.description
+                ? truncateText(issue.renderedFields.description, 500)
+                : "No description available",
             })),
             jql,
             isLast: data.isLast,
-            nextPageToken: data.nextPageToken
+            nextPageToken: data.nextPageToken,
           });
         });
       } catch (error) {
@@ -236,28 +262,41 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       description: "Get detailed information about a specific Jira issue",
       inputSchema: {
         issueKey: z.string().describe("The issue key (e.g., 'PROJ-123')"),
-        fields: z.array(z.string()).optional().describe("Optional list of Jira fields to retrieve")
-      }
+        fields: z
+          .array(z.string())
+          .optional()
+          .describe("Optional list of Jira fields to retrieve"),
+      },
     },
-  async (args: any) => {
-      console.log('🔧 [jira_get_issue] Args:', JSON.stringify(args, null, 2));
+    async (args: any) => {
+      console.log("🔧 [jira_get_issue] Args:", JSON.stringify(args, null, 2));
       try {
         const { issueKey, fields } = args;
-        console.log(`Fetching issue ${issueKey} with fields: ${fields ? fields.join(', ') : 'default fields'}`);
+        console.log(
+          `Fetching issue ${issueKey} with fields: ${
+            fields ? fields.join(", ") : "default fields"
+          }`
+        );
         const result = await getIssue(issueKey, fields);
 
         return handleResult(result, (issue) => {
           const issueDetails = {
-              ...issue,
-              key: issue.key,
-              summary: issue.fields?.summary || 'No summary available',
-              status: issue.fields?.status?.name || 'Unknown',
-              assignee: issue.fields?.assignee?.displayName || 'Unknown',
-              priority: issue.fields?.priority?.name || 'None',
-              created: issue.fields?.created ? formatDate(issue.fields.created) : 'Unknown',
-              updated: issue.fields?.updated ? formatDate(issue.fields.updated) : 'Unknown',
-              url: `${process.env.JIRA_BASE_URL}/browse/${issue.key}`,
-              description: issue.renderedFields?.description ? truncateText(issue.renderedFields.description, 500) : 'No description available'
+            ...issue,
+            key: issue.key,
+            summary: issue.fields?.summary || "No summary available",
+            status: issue.fields?.status?.name || "Unknown",
+            assignee: issue.fields?.assignee?.displayName || "Unknown",
+            priority: issue.fields?.priority?.name || "None",
+            created: issue.fields?.created
+              ? formatDate(issue.fields.created)
+              : "Unknown",
+            updated: issue.fields?.updated
+              ? formatDate(issue.fields.updated)
+              : "Unknown",
+            url: `${process.env.JIRA_BASE_URL}/browse/${issue.key}`,
+            description: issue.renderedFields?.description
+              ? truncateText(issue.renderedFields.description, 500)
+              : "No description available",
           };
 
           return makeMCPToolJSONSuccess(issueDetails);
@@ -268,13 +307,12 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           "Failed to get issue details",
           [
             "Verify the issue key is correct",
-            "Check that you have permission to view the issue"
+            "Check that you have permission to view the issue",
           ]
         );
       }
     }
   );
-
 
   // Tool 11: Get Issue Comments
   server.registerTool(
@@ -283,11 +321,14 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
       title: "Get Jira Issue Comments",
       description: "Get all comments about a specific Jira issue",
       inputSchema: {
-        issueKey: z.string().describe("The issue key (e.g., 'PROJ-123')")
-      }
+        issueKey: z.string().describe("The issue key (e.g., 'PROJ-123')"),
+      },
     },
     async (args: any) => {
-      console.log('🔧 [jira_get_comments] Args:', JSON.stringify(args, null, 2));
+      console.log(
+        "🔧 [jira_get_comments] Args:",
+        JSON.stringify(args, null, 2)
+      );
       try {
         const { issueKey } = args;
         const result = await getIssueComments(issueKey);
@@ -296,7 +337,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           return makeMCPToolJSONSuccess({
             issueKey,
             comments,
-            total: comments.length
+            total: comments.length,
           });
         });
       } catch (error) {
@@ -305,7 +346,7 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           "Failed to get issue comments",
           [
             "Verify the issue key is correct",
-            "Check that you have permission to view the issue and its comments"
+            "Check that you have permission to view the issue and its comments",
           ]
         );
       }
@@ -318,24 +359,30 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     {
       title: "Get Issue Types",
       description: "Get all available issue types in Jira",
-      inputSchema: {}
+      inputSchema: {},
     },
     async (args) => {
-      console.log('🔧 [jira_get_issue_types] Args:', JSON.stringify(args, null, 2));
+      console.log(
+        "🔧 [jira_get_issue_types] Args:",
+        JSON.stringify(args, null, 2)
+      );
       const result = await getIssueTypes();
-      console.log('📊 [jira_get_issue_types] Jira API result:', JSON.stringify(result, null, 2));
+      console.log(
+        "📊 [jira_get_issue_types] Jira API result:",
+        JSON.stringify(result, null, 2)
+      );
       return handleResult(result, (issueTypes) => {
-        const typesInfo = issueTypes.map(type => ({
+        const typesInfo = issueTypes.map((type) => ({
           id: type.id,
           name: type.name,
-          description: type.description || '',
+          description: type.description || "",
           subtask: type.subtask,
-          iconUrl: type.iconUrl
+          iconUrl: type.iconUrl,
         }));
 
         return makeMCPToolJSONSuccess({
           issueTypes: typesInfo,
-          count: issueTypes.length
+          count: issueTypes.length,
         });
       });
     }
@@ -347,10 +394,10 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
     {
       title: "Get Jira Fields",
       description: "Get all available Jira fields (system and custom)",
-      inputSchema: JiraGetFieldsRequestSchema.shape
+      inputSchema: JiraGetFieldsRequestSchema.shape,
     },
     async (args: any) => {
-      console.log('🔧 [jira_get_fields] Args:', JSON.stringify(args, null, 2));
+      console.log("🔧 [jira_get_fields] Args:", JSON.stringify(args, null, 2));
       try {
         const params = JiraGetFieldsRequestSchema.parse(args);
         const result = await listFieldSummaries(
@@ -359,15 +406,22 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
           params.fieldTypes,
           params.searchTerm
         );
-        console.log('📊 [jira_get_fields] Jira API result:', JSON.stringify(result, null, 2));
+        console.log(
+          "📊 [jira_get_fields] Jira API result:",
+          JSON.stringify(result, null, 2)
+        );
 
         return handleResult(result, (data) => {
-          const pagination = createPaginationInfo(data.startAt, data.maxResults, data.total);
+          const pagination = createPaginationInfo(
+            data.startAt,
+            data.maxResults,
+            data.total
+          );
 
           return makeMCPToolJSONSuccess({
             pagination,
             fields: data.fields,
-            total: data.total
+            total: data.total,
           });
         });
       } catch (error) {
@@ -380,10 +434,10 @@ function createServer(auth?: any, agentLoopContext?: any): McpServer {
 }
 
 // Handle POST requests for client-to-server communication
-app.post('/mcp', async (req, res) => {
+app.post("/mcp", async (req, res) => {
   try {
     // Check for existing session ID
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
     let transport: StreamableHTTPServerTransport;
 
     if (sessionId && transports[sessionId]) {
@@ -414,10 +468,10 @@ app.post('/mcp', async (req, res) => {
     } else {
       // Invalid request
       res.status(400).json({
-        jsonrpc: '2.0',
+        jsonrpc: "2.0",
         error: {
           code: -32000,
-          message: 'Bad Request: No valid session ID provided',
+          message: "Bad Request: No valid session ID provided",
         },
         id: null,
       });
@@ -427,13 +481,13 @@ app.post('/mcp', async (req, res) => {
     // Handle the request
     await transport.handleRequest(req, res, req.body);
   } catch (error) {
-    console.error('Error handling MCP request:', error);
+    console.error("Error handling MCP request:", error);
     if (!res.headersSent) {
       res.status(500).json({
-        jsonrpc: '2.0',
+        jsonrpc: "2.0",
         error: {
           code: -32603,
-          message: 'Internal server error',
+          message: "Internal server error",
         },
         id: null,
       });
@@ -442,62 +496,69 @@ app.post('/mcp', async (req, res) => {
 });
 
 // Reusable handler for GET and DELETE requests
-const handleSessionRequest = async (req: express.Request, res: express.Response) => {
+const handleSessionRequest = async (
+  req: express.Request,
+  res: express.Response
+) => {
   try {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
     if (!sessionId || !transports[sessionId]) {
-      res.status(400).send('Invalid or missing session ID');
+      res.status(400).send("Invalid or missing session ID");
       return;
     }
 
     const transport = transports[sessionId];
     await transport.handleRequest(req, res);
   } catch (error) {
-    console.error('Error handling session request:', error);
-    res.status(500).send('Internal server error');
+    console.error("Error handling session request:", error);
+    res.status(500).send("Internal server error");
   }
 };
 
 // Handle GET requests for server-to-client notifications via SSE
-app.get('/mcp', handleSessionRequest);
+app.get("/mcp", handleSessionRequest);
 
 // Handle DELETE requests for session termination
-app.delete('/mcp', handleSessionRequest);
+app.delete("/mcp", handleSessionRequest);
 
 // Health check endpoint with Jira connection status
-app.get('/health', async (req, res) => {
+app.get("/health", async (req, res) => {
   const connectionResult = await getConnectionInfo();
 
   res.json({
-    status: 'ok',
-    server: 'jira-mcp-server',
-    version: '1.0.0',
+    status: "ok",
+    server: "jira-mcp-server",
+    version: "1.0.0",
     activeSessions: Object.keys(transports).length,
     jiraConnection: {
-      configured: !!(process.env.JIRA_API_TOKEN && process.env.JIRA_EMAIL && process.env.JIRA_BASE_URL),
+      configured: !!(
+        process.env.JIRA_API_TOKEN &&
+        process.env.JIRA_EMAIL &&
+        process.env.JIRA_BASE_URL
+      ),
       connected: connectionResult.success,
-      baseUrl: process.env.JIRA_BASE_URL || 'not configured'
+      baseUrl: process.env.JIRA_BASE_URL || "not configured",
     },
     tools: [
-      'jira_get_connection_info',
-      'jira_get_issues_using_jql',
-      ,'jira_get_issue',
-      'jira_get_comments',
-      'jira_get_issue_link_types',
-      'jira_get_fields'
-    ]
+      "jira_get_connection_info",
+      "jira_get_issues_using_jql",
+      "jira_get_issue",
+      "jira_get_comments",
+      "jira_get_issue_link_types",
+      "jira_get_fields",
+    ],
   });
 });
 
 const PORT = process.env.PORT || 3000;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
-const USE_HTTPS = process.env.USE_HTTPS === 'true';
+const USE_HTTPS = process.env.USE_HTTPS === "true";
 
 if (USE_HTTPS) {
   try {
     const httpsOptions = {
-      key: fs.readFileSync(path.join(process.cwd(), 'key.pem')),
-      cert: fs.readFileSync(path.join(process.cwd(), 'cert.pem'))
+      key: fs.readFileSync(path.join(process.cwd(), "key.pem")),
+      cert: fs.readFileSync(path.join(process.cwd(), "cert.pem")),
     };
 
     https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
@@ -506,12 +567,28 @@ if (USE_HTTPS) {
       console.log(`🔗 MCP endpoint: https://localhost:${HTTPS_PORT}/mcp`);
 
       console.log(`\n🔐 Authentication: Using environment variables`);
-      console.log(`  - JIRA_API_TOKEN: ${process.env.JIRA_API_TOKEN ? '✅ Set' : '❌ Missing'}`);
-      console.log(`  - JIRA_EMAIL: ${process.env.JIRA_EMAIL ? '✅ Set' : '❌ Missing'}`);
-      console.log(`  - JIRA_BASE_URL: ${process.env.JIRA_BASE_URL ? '✅ Set' : '❌ Missing'}`);
+      console.log(
+        `  - JIRA_API_TOKEN: ${
+          process.env.JIRA_API_TOKEN ? "✅ Set" : "❌ Missing"
+        }`
+      );
+      console.log(
+        `  - JIRA_EMAIL: ${process.env.JIRA_EMAIL ? "✅ Set" : "❌ Missing"}`
+      );
+      console.log(
+        `  - JIRA_BASE_URL: ${
+          process.env.JIRA_BASE_URL ? "✅ Set" : "❌ Missing"
+        }`
+      );
 
-      if (!process.env.JIRA_API_TOKEN || !process.env.JIRA_EMAIL || !process.env.JIRA_BASE_URL) {
-        console.log(`\n⚠️  Warning: Jira credentials not fully configured. See README.md for setup instructions.`);
+      if (
+        !process.env.JIRA_API_TOKEN ||
+        !process.env.JIRA_EMAIL ||
+        !process.env.JIRA_BASE_URL
+      ) {
+        console.log(
+          `\n⚠️  Warning: Jira credentials not fully configured. See README.md for setup instructions.`
+        );
       }
     });
   } catch (error) {
@@ -525,12 +602,28 @@ if (USE_HTTPS) {
     console.log(`🔗 MCP endpoint: http://localhost:${PORT}/mcp`);
 
     console.log(`\n🔐 Authentication: Using environment variables`);
-    console.log(`  - JIRA_API_TOKEN: ${process.env.JIRA_API_TOKEN ? '✅ Set' : '❌ Missing'}`);
-    console.log(`  - JIRA_EMAIL: ${process.env.JIRA_EMAIL ? '✅ Set' : '❌ Missing'}`);
-    console.log(`  - JIRA_BASE_URL: ${process.env.JIRA_BASE_URL ? '✅ Set' : '❌ Missing'}`);
+    console.log(
+      `  - JIRA_API_TOKEN: ${
+        process.env.JIRA_API_TOKEN ? "✅ Set" : "❌ Missing"
+      }`
+    );
+    console.log(
+      `  - JIRA_EMAIL: ${process.env.JIRA_EMAIL ? "✅ Set" : "❌ Missing"}`
+    );
+    console.log(
+      `  - JIRA_BASE_URL: ${
+        process.env.JIRA_BASE_URL ? "✅ Set" : "❌ Missing"
+      }`
+    );
 
-    if (!process.env.JIRA_API_TOKEN || !process.env.JIRA_EMAIL || !process.env.JIRA_BASE_URL) {
-      console.log(`\n⚠️  Warning: Jira credentials not fully configured. See README.md for setup instructions.`);
+    if (
+      !process.env.JIRA_API_TOKEN ||
+      !process.env.JIRA_EMAIL ||
+      !process.env.JIRA_BASE_URL
+    ) {
+      console.log(
+        `\n⚠️  Warning: Jira credentials not fully configured. See README.md for setup instructions.`
+      );
     }
   });
 }

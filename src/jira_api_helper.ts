@@ -20,9 +20,14 @@ import {
   SEARCH_USERS_MAX_RESULTS,
   SearchFilter,
   SearchFilterField,
-  SortDirection
+  SortDirection,
 } from "./types.js";
-import { transformJiraComments, convertToADF, cleanJiraSearchResponse, cleanJiraIssue } from "./utils.js";
+import {
+  transformJiraComments,
+  convertToADF,
+  cleanJiraSearchResponse,
+  cleanJiraIssue,
+} from "./utils.js";
 import { createJQLFromSearchFilters } from "./jira_utils.js";
 import { writeFile } from "fs/promises";
 
@@ -35,27 +40,33 @@ export function getJiraCredentials(): Result<JiraCredentials, Error> {
   if (!apiToken) {
     return {
       success: false,
-      error: new JiraAuthenticationError("JIRA_API_TOKEN environment variable is required")
+      error: new JiraAuthenticationError(
+        "JIRA_API_TOKEN environment variable is required"
+      ),
     };
   }
 
   if (!email) {
     return {
       success: false,
-      error: new JiraAuthenticationError("JIRA_EMAIL environment variable is required")
+      error: new JiraAuthenticationError(
+        "JIRA_EMAIL environment variable is required"
+      ),
     };
   }
 
   if (!baseUrl) {
     return {
       success: false,
-      error: new JiraAuthenticationError("JIRA_BASE_URL environment variable is required (e.g., https://yourcompany.atlassian.net)")
+      error: new JiraAuthenticationError(
+        "JIRA_BASE_URL environment variable is required (e.g., https://yourcompany.atlassian.net)"
+      ),
     };
   }
 
   return {
     success: true,
-    data: { email, apiToken, baseUrl: baseUrl.replace(/\/$/, '') }
+    data: { email, apiToken, baseUrl: baseUrl.replace(/\/$/, "") },
   };
 }
 
@@ -73,7 +84,7 @@ export async function withAuth<T>(
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error : new Error(String(error))
+      error: error instanceof Error ? error : new Error(String(error)),
     };
   }
 }
@@ -90,13 +101,15 @@ async function jiraApiCall<T>(
 ): Promise<Result<T, Error>> {
   const { method = "GET", body, headers = {} } = options;
 
-  const auth = Buffer.from(`${credentials.email}:${credentials.apiToken}`).toString('base64');
+  const auth = Buffer.from(
+    `${credentials.email}:${credentials.apiToken}`
+  ).toString("base64");
 
   const defaultHeaders = {
-    'Authorization': `Basic ${auth}`,
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    ...headers
+    Authorization: `Basic ${auth}`,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...headers,
   };
 
   const url = `${credentials.baseUrl}/rest/api/3${endpoint}`;
@@ -115,7 +128,7 @@ async function jiraApiCall<T>(
       try {
         const errorData = JSON.parse(errorText);
         if (errorData.errorMessages?.length > 0) {
-          errorMessage = errorData.errorMessages.join(', ');
+          errorMessage = errorData.errorMessages.join(", ");
         } else if (errorData.message) {
           errorMessage = errorData.message;
         }
@@ -126,17 +139,19 @@ async function jiraApiCall<T>(
       if (response.status === 401) {
         return {
           success: false,
-          error: new JiraAuthenticationError(`Authentication failed: ${errorMessage}`)
+          error: new JiraAuthenticationError(
+            `Authentication failed: ${errorMessage}`
+          ),
         };
       } else if (response.status === 404) {
         return {
           success: false,
-          error: new JiraNotFoundError("Resource", endpoint)
+          error: new JiraNotFoundError("Resource", endpoint),
         };
       } else {
         return {
           success: false,
-          error: new JiraApiError(errorMessage, response.status, errorText)
+          error: new JiraApiError(errorMessage, response.status, errorText),
         };
       }
     }
@@ -149,21 +164,29 @@ async function jiraApiCall<T>(
     const data = JSON.parse(text);
     try {
       const date = new Date();
-      const logEntry = JSON.stringify({
-        method,
-        endpoint,
-        requestBody: body,
-        responseBody: data
-      }, null, 2) + '\n';
-      await writeFile(`${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}.json`, logEntry);
+      const logEntry =
+        JSON.stringify(
+          {
+            method,
+            endpoint,
+            requestBody: body,
+            responseBody: data,
+          },
+          null,
+          2
+        ) + "\n";
+      await writeFile(
+        `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}.json`,
+        logEntry
+      );
     } catch {
-      console.error('Failed to append to jira_api_response_debug.json');
+      console.error("Failed to append to jira_api_response_debug.json");
     }
     return { success: true, data };
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error : new Error(String(error))
+      error: error instanceof Error ? error : new Error(String(error)),
     };
   }
 }
@@ -187,8 +210,8 @@ export async function getConnectionInfo(): Promise<Result<any, Error>> {
         serverInfo: serverInfoResult.data,
         currentUser: myselfResult.data,
         baseUrl: credentials.baseUrl,
-        connected: true
-      }
+        connected: true,
+      },
     };
   });
 }
@@ -200,15 +223,22 @@ export async function getProjects(): Promise<Result<JiraProject[], Error>> {
   });
 }
 
-export async function getProject(projectKey: string): Promise<Result<JiraProject, Error>> {
+export async function getProject(
+  projectKey: string
+): Promise<Result<JiraProject, Error>> {
   return withAuth(async (credentials) => {
     return jiraApiCall<JiraProject>(credentials, `/project/${projectKey}`);
   });
 }
 
-export async function getProjectVersions(projectKey: string): Promise<Result<JiraProjectVersion[], Error>> {
+export async function getProjectVersions(
+  projectKey: string
+): Promise<Result<JiraProjectVersion[], Error>> {
   return withAuth(async (credentials) => {
-    return jiraApiCall<JiraProjectVersion[]>(credentials, `/project/${projectKey}/version`);
+    return jiraApiCall<JiraProjectVersion[]>(
+      credentials,
+      `/project/${projectKey}/version`
+    );
   });
 }
 
@@ -231,7 +261,12 @@ export async function listFieldSummaries(
   startAt: number = 0,
   fieldTypes?: ("system" | "custom")[],
   searchTerm?: string
-): Promise<Result<{ fields: any[], total: number, startAt: number, maxResults: number }, Error>> {
+): Promise<
+  Result<
+    { fields: any[]; total: number; startAt: number; maxResults: number },
+    Error
+  >
+> {
   return withAuth(async (credentials) => {
     const result = await jiraApiCall<any>(credentials, "/field");
     if (!result.success) return result;
@@ -251,16 +286,17 @@ export async function listFieldSummaries(
     // Apply search term filtering on the original data
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      filteredFields = filteredFields.filter((field: any) =>
-        (field.key || field.id).toLowerCase().includes(searchLower) ||
-        field.name.toLowerCase().includes(searchLower)
+      filteredFields = filteredFields.filter(
+        (field: any) =>
+          (field.key || field.id).toLowerCase().includes(searchLower) ||
+          field.name.toLowerCase().includes(searchLower)
       );
     }
 
     // Now map to clean summary with only key and name
     let summaries = filteredFields.map((field: any) => ({
-      key: field.key || field.id,  // Use key if available, fallback to id
-      name: field.name
+      key: field.key || field.id, // Use key if available, fallback to id
+      name: field.name,
     }));
 
     const total = summaries.length;
@@ -274,25 +310,33 @@ export async function listFieldSummaries(
         fields: paginatedFields,
         total,
         startAt,
-        maxResults
-      }
+        maxResults,
+      },
     };
   });
 }
 
 // User operations
-export async function listUsers(query?: string, maxResults = 10): Promise<Result<JiraUser[], Error>> {
+export async function listUsers(
+  query?: string,
+  maxResults = 10
+): Promise<Result<JiraUser[], Error>> {
   return withAuth(async (credentials) => {
     const params = new URLSearchParams();
-    if (query) params.set('query', query);
-    params.set('maxResults', Math.min(maxResults, SEARCH_USERS_MAX_RESULTS).toString());
+    if (query) params.set("query", query);
+    params.set(
+      "maxResults",
+      Math.min(maxResults, SEARCH_USERS_MAX_RESULTS).toString()
+    );
 
     const endpoint = `/user/search?${params.toString()}`;
     return jiraApiCall<JiraUser[]>(credentials, endpoint);
   });
 }
 
-export async function searchUsersByEmailExact(email: string): Promise<Result<JiraUser[], Error>> {
+export async function searchUsersByEmailExact(
+  email: string
+): Promise<Result<JiraUser[], Error>> {
   return withAuth(async (credentials) => {
     const endpoint = `/user/search?query=${encodeURIComponent(email)}`;
     const result = await jiraApiCall<JiraUser[]>(credentials, endpoint);
@@ -300,8 +344,8 @@ export async function searchUsersByEmailExact(email: string): Promise<Result<Jir
     if (!result.success) return result;
 
     // Filter for exact email match
-    const exactMatches = result.data.filter(user =>
-      user.emailAddress?.toLowerCase() === email.toLowerCase()
+    const exactMatches = result.data.filter(
+      (user) => user.emailAddress?.toLowerCase() === email.toLowerCase()
     );
 
     return { success: true, data: exactMatches };
@@ -330,14 +374,22 @@ export async function searchIssues(params: {
     if (params.issueType) jqlParts.push(`issuetype = "${params.issueType}"`);
     if (params.priority) jqlParts.push(`priority = "${params.priority}"`);
 
-    const jql = jqlParts.length > 0 ? jqlParts.join(' AND ') : 'order by updated DESC';
+    const jql =
+      jqlParts.length > 0 ? jqlParts.join(" AND ") : "order by updated DESC";
 
     return searchJiraIssuesUsingJql(jql, {
       maxResults: params.maxResults,
       nextPageToken: params.nextPageToken,
       expand: params.expand,
-      fields: ['summary', 'status', 'assignee', 'priority', 'created', 'updated'],
-      cleanADF: true // Clean ADF fields by default
+      fields: [
+        "summary",
+        "status",
+        "assignee",
+        "priority",
+        "created",
+        "updated",
+      ],
+      cleanADF: true, // Clean ADF fields by default
     });
   });
 }
@@ -355,37 +407,60 @@ export async function searchJiraIssuesUsingJql(
   return withAuth(async (credentials) => {
     // Use the new /search/jql endpoint with token-based pagination
     const params = new URLSearchParams();
-    params.set('jql', jql);
-    params.set('maxResults', (options.maxResults || 50).toString());
+    params.set("jql", jql);
+    params.set("maxResults", (options.maxResults || 50).toString());
 
     // Use nextPageToken for pagination (don't include on first request)
     if (options.nextPageToken) {
-      params.set('nextPageToken', options.nextPageToken);
+      params.set("nextPageToken", options.nextPageToken);
     }
 
     if (options.expand && options.expand.length > 0) {
-      params.set('expand', options.expand.join(','));
+      params.set("expand", options.expand.join(","));
     }
 
     // Include essential fields for issue display
-    const defaultFields = ['summary', 'status', 'assignee', 'priority', 'created', 'updated'];
+    const defaultFields = [
+      "summary",
+      "status",
+      "assignee",
+      "priority",
+      "created",
+      "updated",
+    ];
     const fields = options.fields || defaultFields;
     if (fields.length > 0) {
-      params.set('fields', fields.join(','));
+      params.set("fields", fields.join(","));
     }
 
-    const result = await jiraApiCall<JiraSearchResponseWithToken>(credentials, `/search/jql?${params.toString()}`, {
-      method: "GET"
-    });
+    const result = await jiraApiCall<JiraSearchResponseWithToken>(
+      credentials,
+      `/search/jql?${params.toString()}`,
+      {
+        method: "GET",
+      }
+    );
 
     // Clean the response to convert ADF fields to plain text if requested
-    if (result.success && options.cleanADF !== false) { // Default to true for backward compatibility
+    if (result.success && options.cleanADF !== false) {
+      // Default to true for backward compatibility
       const cleanedData = cleanJiraSearchResponse(result.data);
+      //write cleaned data to a file for debugging
+      try {
+        const date = new Date();
+        const logEntry = JSON.stringify(cleanedData, null, 2) + "\n";
+        await writeFile(
+          `jira_search_response_${date.getHours()}_${date.getMinutes()}_${date.getSeconds()}.json`,
+          logEntry
+        );
+      } catch {
+        console.error("Failed to write cleaned jira search response to file");
+      }
       return { success: true, data: cleanedData };
     }
 
     return result;
-    });
+  });
 }
 
 /**
@@ -401,7 +476,14 @@ export async function searchIssuesWithFilters(
     fields?: string[];
     cleanADF?: boolean;
   }
-): Promise<Result<JiraSearchResponseWithToken & { searchCriteria: { filters: SearchFilter[]; jql: string } }, Error>> {
+): Promise<
+  Result<
+    JiraSearchResponseWithToken & {
+      searchCriteria: { filters: SearchFilter[]; jql: string };
+    },
+    Error
+  >
+> {
   const { sortBy, maxResults, nextPageToken, fields, cleanADF } = options || {};
 
   // Convert filters to JQL
@@ -432,10 +514,17 @@ export async function searchIssuesWithFilters(
   return result;
 }
 
-export async function getIssue(issueKey: string, fields?: string[], cleanADF: boolean = true): Promise<Result<JiraIssue, Error>> {
+export async function getIssue(
+  issueKey: string,
+  fields?: string[],
+  cleanADF: boolean = true
+): Promise<Result<JiraIssue, Error>> {
   return withAuth(async (credentials) => {
-    const fieldsUrlParam = fields?.join(',') || "";
-    const result = await jiraApiCall<JiraIssue>(credentials, `/issue/${issueKey}` + `?fields=${fieldsUrlParam}`);
+    const fieldsUrlParam = fields?.join(",") || "";
+    const result = await jiraApiCall<JiraIssue>(
+      credentials,
+      `/issue/${issueKey}` + `?fields=${fieldsUrlParam}`
+    );
 
     // Clean the issue to convert ADF fields to plain text if requested
     if (result.success && cleanADF) {
@@ -489,11 +578,11 @@ export async function createIssue(issueData: {
     }
 
     if (issueData.components?.length) {
-      fields.components = issueData.components.map(name => ({ name }));
+      fields.components = issueData.components.map((name) => ({ name }));
     }
 
     if (issueData.fixVersions?.length) {
-      fields.fixVersions = issueData.fixVersions.map(name => ({ name }));
+      fields.fixVersions = issueData.fixVersions.map((name) => ({ name }));
     }
 
     if (issueData.parentKey) {
@@ -509,21 +598,24 @@ export async function createIssue(issueData: {
 
     return jiraApiCall<JiraIssue>(credentials, "/issue", {
       method: "POST",
-      body
+      body,
     });
   });
 }
 
-export async function updateIssue(issueKey: string, updates: {
-  summary?: string;
-  description?: string | any;
-  priority?: string;
-  assignee?: string;
-  labels?: string[];
-  components?: string[];
-  fixVersions?: string[];
-  customFields?: Record<string, any>;
-}): Promise<Result<void, Error>> {
+export async function updateIssue(
+  issueKey: string,
+  updates: {
+    summary?: string;
+    description?: string | any;
+    priority?: string;
+    assignee?: string;
+    labels?: string[];
+    components?: string[];
+    fixVersions?: string[];
+    customFields?: Record<string, any>;
+  }
+): Promise<Result<void, Error>> {
   return withAuth(async (credentials) => {
     const fields: any = {};
 
@@ -548,11 +640,11 @@ export async function updateIssue(issueKey: string, updates: {
     }
 
     if (updates.components) {
-      fields.components = updates.components.map(name => ({ name }));
+      fields.components = updates.components.map((name) => ({ name }));
     }
 
     if (updates.fixVersions) {
-      fields.fixVersions = updates.fixVersions.map(name => ({ name }));
+      fields.fixVersions = updates.fixVersions.map((name) => ({ name }));
     }
 
     // Add custom fields
@@ -564,13 +656,15 @@ export async function updateIssue(issueKey: string, updates: {
 
     return jiraApiCall<void>(credentials, `/issue/${issueKey}`, {
       method: "PUT",
-      body
+      body,
     });
   });
 }
 
 // Transition operations
-export async function getTransitions(issueKey: string): Promise<Result<JiraTransition[], Error>> {
+export async function getTransitions(
+  issueKey: string
+): Promise<Result<JiraTransition[], Error>> {
   return withAuth(async (credentials) => {
     const result = await jiraApiCall<{ transitions: JiraTransition[] }>(
       credentials,
@@ -591,7 +685,7 @@ export async function transitionIssue(
 ): Promise<Result<void, Error>> {
   return withAuth(async (credentials) => {
     const body: any = {
-      transition: { id: transitionId }
+      transition: { id: transitionId },
     };
 
     if (fields) {
@@ -612,21 +706,21 @@ export async function transitionIssue(
                     content: [
                       {
                         type: "text",
-                        text: comment
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        ]
+                        text: comment,
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        ],
       };
     }
 
     return jiraApiCall<void>(credentials, `/issue/${issueKey}/transitions`, {
       method: "POST",
-      body
+      body,
     });
   });
 }
@@ -639,7 +733,7 @@ export async function createComment(
 ): Promise<Result<any, Error>> {
   return withAuth(async (credentials) => {
     const commentBody: any = {
-      body: convertToADF(body)
+      body: convertToADF(body),
     };
 
     if (visibility) {
@@ -648,12 +742,14 @@ export async function createComment(
 
     return jiraApiCall<any>(credentials, `/issue/${issueKey}/comment`, {
       method: "POST",
-      body: commentBody
+      body: commentBody,
     });
   });
 }
 
-export async function getIssueComments(issueKey: string): Promise<Result<any[], Error>> {
+export async function getIssueComments(
+  issueKey: string
+): Promise<Result<any[], Error>> {
   return withAuth(async (credentials) => {
     const result = await jiraApiCall<{ comments: any[] }>(
       credentials,
@@ -661,16 +757,19 @@ export async function getIssueComments(issueKey: string): Promise<Result<any[], 
     );
 
     if (!result.success) return result;
-    
-      const transformedResult = transformJiraComments(result.data.comments);
-      return { success: true, data: transformedResult.data };
+
+    const transformedResult = transformJiraComments(result.data.comments);
+    return { success: true, data: transformedResult.data };
   });
 }
 
 // Link operations
 export async function getIssueLinkTypes(): Promise<Result<any[], Error>> {
   return withAuth(async (credentials) => {
-    const result = await jiraApiCall<{ issueLinkTypes: any[] }>(credentials, "/issueLinkType");
+    const result = await jiraApiCall<{ issueLinkTypes: any[] }>(
+      credentials,
+      "/issueLinkType"
+    );
     if (!result.success) return result;
 
     return { success: true, data: result.data.issueLinkTypes };
@@ -687,34 +786,41 @@ export async function createIssueLink(
     const body: any = {
       type: { name: linkType },
       inwardIssue: { key: inwardIssueKey },
-      outwardIssue: { key: outwardIssueKey }
+      outwardIssue: { key: outwardIssueKey },
     };
 
     if (comment) {
       body.comment = {
-        body: convertToADF(comment)
+        body: convertToADF(comment),
       };
     }
 
     return jiraApiCall<void>(credentials, "/issueLink", {
       method: "POST",
-      body
+      body,
     });
   });
 }
 
-export async function deleteIssueLink(linkId: string): Promise<Result<void, Error>> {
+export async function deleteIssueLink(
+  linkId: string
+): Promise<Result<void, Error>> {
   return withAuth(async (credentials) => {
     return jiraApiCall<void>(credentials, `/issueLink/${linkId}`, {
-      method: "DELETE"
+      method: "DELETE",
     });
   });
 }
 
 // Attachment operations
-export async function getIssueAttachments(issueKey: string): Promise<Result<JiraAttachment[], Error>> {
+export async function getIssueAttachments(
+  issueKey: string
+): Promise<Result<JiraAttachment[], Error>> {
   return withAuth(async (credentials) => {
-    const result = await jiraApiCall<JiraIssue>(credentials, `/issue/${issueKey}?fields=attachment`);
+    const result = await jiraApiCall<JiraIssue>(
+      credentials,
+      `/issue/${issueKey}?fields=attachment`
+    );
     if (!result.success) return result;
 
     return { success: true, data: result.data.fields.attachment || [] };
@@ -725,48 +831,56 @@ export async function uploadAttachmentsToJira(
   issueKey: string,
   files: Array<{ filename: string; content: Buffer; contentType?: string }>
 ): Promise<Result<JiraAttachment[], Error>> {
-  return withAuth(async (credentials): Promise<Result<JiraAttachment[], Error>> => {
-    const form = new FormData();
+  return withAuth(
+    async (credentials): Promise<Result<JiraAttachment[], Error>> => {
+      const form = new FormData();
 
-    files.forEach(file => {
-      form.append('file', file.content, {
-        filename: file.filename,
-        contentType: file.contentType || 'application/octet-stream'
-      });
-    });
-
-    const auth = Buffer.from(`${credentials.email}:${credentials.apiToken}`).toString('base64');
-
-    const url = `${credentials.baseUrl}/rest/api/3/issue/${issueKey}/attachments`;
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${auth}`,
-          'X-Atlassian-Token': 'no-check',
-          ...form.getHeaders()
-        },
-        body: form
+      files.forEach((file) => {
+        form.append("file", file.content, {
+          filename: file.filename,
+          contentType: file.contentType || "application/octet-stream",
+        });
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
+      const auth = Buffer.from(
+        `${credentials.email}:${credentials.apiToken}`
+      ).toString("base64");
+
+      const url = `${credentials.baseUrl}/rest/api/3/issue/${issueKey}/attachments`;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${auth}`,
+            "X-Atlassian-Token": "no-check",
+            ...form.getHeaders(),
+          },
+          body: form,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          return {
+            success: false,
+            error: new JiraApiError(
+              `Upload failed: ${response.statusText}`,
+              response.status,
+              errorText
+            ),
+          };
+        }
+
+        const data = (await response.json()) as JiraAttachment[];
+        return { success: true, data };
+      } catch (error) {
         return {
           success: false,
-          error: new JiraApiError(`Upload failed: ${response.statusText}`, response.status, errorText)
+          error: error instanceof Error ? error : new Error(String(error)),
         };
       }
-
-      const data = await response.json() as JiraAttachment[];
-      return { success: true, data };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error : new Error(String(error))
-      };
     }
-  });
+  );
 }
 
 // Error handling utility
@@ -775,9 +889,9 @@ export function normalizeError(error: unknown): Error {
     return error;
   }
 
-  if (typeof error === 'string') {
+  if (typeof error === "string") {
     return new Error(error);
   }
 
-  return new Error('Unknown error occurred');
+  return new Error("Unknown error occurred");
 }
